@@ -31,6 +31,11 @@ function currentNavKey() {
   return page === 'home' ? 'home' : page === 'giveaways' ? 'giveaways' : null;
 }
 
+// Category names come from the Google Sheet
+function escapeLayoutText(text) {
+  return String(text ?? '').replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
+}
+
 function renderHeaderNav() {
   const nav = document.getElementById('header-category-nav');
   if (!nav || typeof CATEGORIES === 'undefined') return;
@@ -43,7 +48,7 @@ function renderHeaderNav() {
   nav.innerHTML = [
     link('home', 'index.html', isAr ? 'الرئيسية' : 'Home'),
     link('all', shopUrl('all'), isAr ? 'جميع المنتجات' : 'All Products'),
-    ...CATEGORIES.map(c => link(c.id, shopUrl(c.id), isAr ? c.nameAr : c.nameEn)),
+    ...CATEGORIES.map(c => link(c.id, shopUrl(c.id), escapeLayoutText((isAr ? c.nameAr : c.nameEn) || c.nameAr || c.nameEn))),
     link('giveaways', 'giveaways.html', isAr ? 'صانع التوزيعات' : 'Giveaways Builder', 'text-brand-600'),
   ].join('');
 
@@ -133,11 +138,7 @@ function renderSiteHeader() {
 
 function renderSiteFooter() {
   const el = document.getElementById('site-footer');
-  if (!el || typeof CATEGORIES === 'undefined') return;
-  const half = Math.ceil(CATEGORIES.length / 2);
-  const catLinks = list => list.map(c =>
-    `<li><a href="${shopUrl(c.id)}" class="hover:text-brand-500 transition-colors">${c.nameAr}</a></li>`
-  ).join('');
+  if (!el) return;
 
   el.innerHTML = `
     <footer class="bg-stone-50 dark:bg-stone-900 border-t border-stone-100 dark:border-stone-800 pt-14 pb-10 mt-10">
@@ -158,11 +159,11 @@ function renderSiteFooter() {
 
           <div>
             <h4 class="font-display font-bold text-base mb-4">الأقسام</h4>
-            <ul class="space-y-2 text-sm text-stone-600 dark:text-stone-400">${catLinks(CATEGORIES.slice(0, half))}</ul>
+            <ul id="footer-cats-1" class="space-y-2 text-sm text-stone-600 dark:text-stone-400"></ul>
           </div>
           <div>
             <h4 class="font-display font-bold text-base mb-4 invisible lg:visible">المزيد</h4>
-            <ul class="space-y-2 text-sm text-stone-600 dark:text-stone-400">${catLinks(CATEGORIES.slice(half))}</ul>
+            <ul id="footer-cats-2" class="space-y-2 text-sm text-stone-600 dark:text-stone-400"></ul>
           </div>
 
           <div>
@@ -189,6 +190,20 @@ function renderSiteFooter() {
       </div>
     </footer>
   `;
+  renderFooterCategories();
+}
+
+// Footer category links, split over two columns (re-run when the live category list arrives)
+function renderFooterCategories() {
+  const first = document.getElementById('footer-cats-1');
+  const second = document.getElementById('footer-cats-2');
+  if (!first || !second || typeof CATEGORIES === 'undefined') return;
+  const half = Math.ceil(CATEGORIES.length / 2);
+  const catLinks = list => list.map(c =>
+    `<li><a href="${shopUrl(c.id)}" class="hover:text-brand-500 transition-colors">${escapeLayoutText(c.nameAr)}</a></li>`
+  ).join('');
+  first.innerHTML = catLinks(CATEGORIES.slice(0, half));
+  second.innerHTML = catLinks(CATEGORIES.slice(half));
 }
 
 function renderSiteOverlays() {

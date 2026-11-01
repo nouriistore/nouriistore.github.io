@@ -632,12 +632,7 @@ function seedAllWebsiteData() {
   const existingProds = prodSheet.getDataRange().getValues();
   if (existingProds.length <= 1) {
     prodSheet.clear();
-    prodSheet.appendRow([
-      "id", "categoryId", "nameAr", "nameEn", "price", "originalPrice",
-      "image", "badgeAr", "badgeEn", "rating", "reviewsCount", 
-      "isCustomizable", "customFieldLabelAr", "customFieldLabelEn", 
-      "descriptionAr", "descriptionEn", "updatedAt"
-    ]);
+    prodSheet.appendRow(PRODUCT_HEADERS);
     prodSheet.setFrozenRows(1);
     
     // إضافة كافة منتجات المتجر الـ 27 تلقائياً
@@ -654,7 +649,7 @@ function seedAllWebsiteData() {
   const existingCats = catSheet.getDataRange().getValues();
   if (existingCats.length <= 1) {
     catSheet.clear();
-    catSheet.appendRow(["id", "nameAr", "nameEn", "icon", "image", "descriptionAr", "descriptionEn"]);
+    catSheet.appendRow(CATEGORY_HEADERS);
     catSheet.setFrozenRows(1);
     if (INITIAL_CATEGORIES_SEED && INITIAL_CATEGORIES_SEED.length > 0) {
       catSheet.getRange(2, 1, INITIAL_CATEGORIES_SEED.length, INITIAL_CATEGORIES_SEED[0].length).setValues(INITIAL_CATEGORIES_SEED);
@@ -686,6 +681,14 @@ function seedAllWebsiteData() {
       "total", "items", "notes", "createdAt"
     ]);
     ordersSheet.setFrozenRows(1);
+  }
+
+  // 5. ورقة إعدادات واجهة المتجر Settings (صورة / فيديو الصفحة الرئيسية)
+  let settingsSheet = ss.getSheetByName("Settings");
+  if (!settingsSheet) {
+    settingsSheet = ss.insertSheet("Settings");
+    settingsSheet.appendRow(["key", "value"]);
+    settingsSheet.setFrozenRows(1);
   }
 
   clearProductsCache_();
@@ -864,10 +867,13 @@ function publicUser_(row) {
 // كاش المنتجات: يقلل وقت الاستجابة والضغط على Google عند زيادة الزوار
 // =========================================================================
 const PRODUCTS_CACHE_KEY = "products_json_v1";
+const STORE_CACHE_KEY = "store_json_v1";
 const PRODUCTS_CACHE_SECONDS = 300;
 
 function clearProductsCache_() {
-  CacheService.getScriptCache().remove(PRODUCTS_CACHE_KEY);
+  const cache = CacheService.getScriptCache();
+  cache.remove(PRODUCTS_CACHE_KEY);
+  cache.remove(STORE_CACHE_KEY);
 }
 
 // Simple trigger: editing the sheet by hand refreshes the store within seconds
@@ -934,27 +940,34 @@ function doGet(e) {
       return ContentService.createTextOutput(json).setMimeType(ContentService.MimeType.JSON);
     }
 
-    // جلب الأقسام
-    if (action === "getCategories") {
-      const sheet = ss.getSheetByName("Categories");
-      if (!sheet) return createResponse({ status: "error", message: "Categories sheet not found" });
-
-      const data = sheet.getDataRange().getValues();
-      if (data.length <= 1) return createResponse({ status: "success", data: [] });
-
-      const headers = data[0];
-      const categories = [];
-
-      for (let i = 1; i < data.length; i++) {
-        const row = data[i];
-        if (!row[0]) continue;
-        const item = {};
-        for (let j = 0; j < headers.length; j++) {
-          item[headers[j]] = row[j];
-        }
-        categories.push(item);
+    // كل ما تحتاجه واجهة المتجر في طلب واحد: الأقسام الظاهرة ومنتجاتها وإعدادات الصفحة الرئيسية
+    if (action === "getStore") {
+      const cache = CacheService.getScriptCache();
+      const cached = cache.get(STORE_CACHE_KEY);
+      if (cached) {
+        return ContentService.createTextOutput(cached).setMimeType(ContentService.MimeType.JSON);
       }
 
+      const allCategories = readCategories_(ss, true) || [];
+      const hidden = {};
+      allCategories.forEach(function (c) { if (!c.isActive) hidden[c.id] = true; });
+      const products = (readProducts_(ss) || []).filter(function (p) { return !hidden[p.categoryId]; });
+
+      const json = JSON.stringify({
+        status: "success",
+        categories: allCategories.filter(function (c) { return c.isActive; }),
+        products: products,
+        settings: readSettings_(ss),
+        source: "Google Drive Live"
+      });
+      if (json.length < 95000) cache.put(STORE_CACHE_KEY, json, PRODUCTS_CACHE_SECONDS);
+      return ContentService.createTextOutput(json).setMimeType(ContentService.MimeType.JSON);
+    }
+
+    // جلب كل الأقسام بما فيها المخفية (للوحة التحكم)
+    if (action === "getCategories") {
+      const categories = readCategories_(ss, true);
+      if (categories === null) return createResponse({ status: "error", message: "Categories sheet not found" });
       return createResponse({ status: "success", count: categories.length, data: categories });
     }
 
@@ -1158,7 +1171,9 @@ function doPost(e) {
       const lock = LockService.getScriptLock();
       lock.waitLock(20000);
       try {
-        const rows = products.filter(function (prod) { return prod && prod.id; }).map(productRow_);
+        const rows = products.filter(function (prod) { return prod && prod.id; }).map(function (prod) {
+          return rowFromObject_(PRODUCT_HEADERS, productValues_(prod), null);
+        });
         sheet.clear();
         sheet.appendRow(PRODUCT_HEADERS);
         sheet.setFrozenRows(1);
@@ -1185,18 +1200,19 @@ function doPost(e) {
       const lock = LockService.getScriptLock();
       lock.waitLock(10000);
       try {
-        const data = sheet.getDataRange().getValues();
+        const table = sheetTable_(sheet, PRODUCT_HEADERS);
         let rowIndex = -1;
-        for (let i = 1; i < data.length; i++) {
-          if (String(data[i][0]) === String(prod.id)) {
-            rowIndex = i + 1;
+        for (let i = 0; i < table.rows.length; i++) {
+          if (String(table.rows[i][0]) === String(prod.id)) {
+            rowIndex = i;
             break;
           }
         }
 
-        const rowValues = productRow_(prod);
-        if (rowIndex > 0) {
-          sheet.getRange(rowIndex, 1, 1, rowValues.length).setValues([rowValues]);
+        const existing = rowIndex >= 0 ? table.rows[rowIndex] : null;
+        const rowValues = rowFromObject_(table.headers, productValues_(prod), existing);
+        if (existing) {
+          sheet.getRange(rowIndex + 2, 1, 1, rowValues.length).setValues([rowValues]);
         } else {
           sheet.appendRow(rowValues);
         }
@@ -1230,19 +1246,23 @@ function doPost(e) {
       }
     }
 
-    // 10. رفع صورة إلى مجلد Google Drive (مشرف أو محرر، صور فقط وبحد أقصى 5 ميجا)
-    if (action === "uploadImage") {
+    // 10. رفع صورة أو فيديو قصير إلى مجلد Google Drive (مشرف أو محرر)
+    if (action === "uploadImage" || action === "uploadMedia") {
       requireAuth_(ss, body, ["admin", "editor"]);
       const base64Data = String(body.base64Data || "");
       const mimeType = String(body.mimeType || "image/jpeg");
-      const filename = String(body.filename || ("nourii-" + Date.now() + ".jpg")).replace(/[^\w.\-]+/g, "_").slice(0, 80);
+      const isVideo = /^video\/(mp4|webm|quicktime)$/.test(mimeType);
+      const isImage = /^image\/(jpeg|png|webp|gif)$/.test(mimeType);
+      const filename = String(body.filename || ("nourii-" + Date.now() + (isVideo ? ".mp4" : ".jpg"))).replace(/[^\w.\-]+/g, "_").slice(0, 80);
 
-      if (!base64Data) return createResponse({ status: "error", message: "بيانات الصورة مفقودة" });
-      if (!/^image\/(jpeg|png|webp|gif)$/.test(mimeType)) {
-        return createResponse({ status: "error", message: "يُسمح برفع الصور فقط (JPG / PNG / WEBP / GIF)" });
+      if (!base64Data) return createResponse({ status: "error", message: "بيانات الملف مفقودة" });
+      if (!isImage && !isVideo) {
+        return createResponse({ status: "error", message: "يُسمح برفع الصور (JPG / PNG / WEBP / GIF) أو الفيديو (MP4 / WEBM / MOV) فقط" });
       }
-      if (base64Data.length > 7 * 1024 * 1024) {
-        return createResponse({ status: "error", message: "حجم الصورة كبير جداً (الحد الأقصى 5 ميجا)" });
+      if (base64Data.length > (isVideo ? MAX_VIDEO_BASE64 : MAX_IMAGE_BASE64)) {
+        return createResponse({ status: "error", message: isVideo
+          ? "حجم الفيديو كبير جداً (الحد الأقصى 25 ميجا). للفيديوهات الأطول ارفعها على يوتيوب أو انستجرام والصق الرابط."
+          : "حجم الصورة كبير جداً (الحد الأقصى 5 ميجا)" });
       }
 
       let folders = DriveApp.getFoldersByName("Nourii Media");
@@ -1258,13 +1278,153 @@ function doPost(e) {
       const file = folder.createFile(blob);
       file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
 
-      const publicUrl = "https://lh3.googleusercontent.com/d/" + file.getId();
+      // Photos load straight from Google's image server; videos play in Drive's player
+      const publicUrl = isVideo
+        ? "https://drive.google.com/file/d/" + file.getId() + "/view"
+        : "https://lh3.googleusercontent.com/d/" + file.getId();
 
       return createResponse({
         status: "success",
+        kind: isVideo ? "video" : "image",
+        url: publicUrl,
         imageUrl: publicUrl,
         fileId: file.getId()
       });
+    }
+
+    // 11. حفظ / إضافة قسم (للمشرف فقط) — يظهر في قائمة المتجر تلقائياً
+    if (action === "saveCategory") {
+      requireAuth_(ss, body, ["admin"]);
+      const cat = body.category || {};
+      const id = String(cat.id || "").trim().toLowerCase();
+      const nameAr = String(cat.nameAr || "").trim();
+      if (!/^[a-z0-9_-]{2,40}$/.test(id)) {
+        return createResponse({ status: "error", message: "رابط القسم يجب أن يكون 2-40 حرفاً إنجليزياً صغيراً أو أرقام أو - بدون مسافات" });
+      }
+      if (!nameAr) return createResponse({ status: "error", message: "اسم القسم بالعربية مطلوب" });
+
+      const lock = LockService.getScriptLock();
+      lock.waitLock(10000);
+      try {
+        const sheet = getOrCreateSheet_(ss, "Categories", CATEGORY_HEADERS);
+        const table = sheetTable_(sheet, CATEGORY_HEADERS);
+        const idCol = table.headers.indexOf("id");
+        const orderCol = table.headers.indexOf("sortOrder");
+        let rowIndex = -1;
+        let maxOrder = 0;
+        for (let i = 0; i < table.rows.length; i++) {
+          if (String(table.rows[i][idCol]).toLowerCase() === id) rowIndex = i;
+          maxOrder = Math.max(maxOrder, Number(table.rows[i][orderCol]) || i + 1);
+        }
+        if (rowIndex >= 0 && cat.isNew) {
+          return createResponse({ status: "error", message: "يوجد قسم بنفس الرابط بالفعل، اختر رابطاً آخر" });
+        }
+
+        const existing = rowIndex >= 0 ? table.rows[rowIndex] : null;
+        const values = {
+          id: id,
+          nameAr: nameAr,
+          nameEn: String(cat.nameEn || "").trim(),
+          icon: String(cat.icon || (existing ? existing[table.headers.indexOf("icon")] : "") || "fa-tag"),
+          image: cleanMediaUrl_(cat.image),
+          descriptionAr: String(cat.descriptionAr || "").trim(),
+          descriptionEn: String(cat.descriptionEn || "").trim(),
+          video: cleanMediaUrl_(cat.video),
+          isActive: cat.isActive !== false
+        };
+        if (!existing) values.sortOrder = maxOrder + 1;
+
+        const rowValues = rowFromObject_(table.headers, values, existing);
+        if (existing) {
+          sheet.getRange(rowIndex + 2, 1, 1, rowValues.length).setValues([rowValues]);
+        } else {
+          sheet.appendRow(rowValues);
+        }
+        clearProductsCache_();
+        return createResponse({ status: "success", message: "تم حفظ القسم بنجاح", category: values });
+      } finally {
+        lock.releaseLock();
+      }
+    }
+
+    // 12. حذف قسم فارغ (للمشرف فقط)
+    if (action === "deleteCategory") {
+      requireAuth_(ss, body, ["admin"]);
+      const id = String(body.id || "").trim().toLowerCase();
+      const products = readProducts_(ss) || [];
+      const inUse = products.filter(function (p) { return String(p.categoryId).toLowerCase() === id; }).length;
+      if (inUse > 0) {
+        return createResponse({ status: "error", message: "لا يمكن حذف قسم فيه " + inUse + " منتج. انقل المنتجات لقسم آخر أولاً، أو أخفِ القسم بدلاً من حذفه." });
+      }
+
+      const lock = LockService.getScriptLock();
+      lock.waitLock(10000);
+      try {
+        const sheet = ss.getSheetByName("Categories");
+        const data = sheet ? sheet.getDataRange().getValues() : [];
+        for (let i = 1; i < data.length; i++) {
+          if (String(data[i][0]).toLowerCase() === id) {
+            sheet.deleteRow(i + 1);
+            clearProductsCache_();
+            return createResponse({ status: "success", message: "تم حذف القسم" });
+          }
+        }
+        return createResponse({ status: "error", message: "القسم غير موجود" });
+      } finally {
+        lock.releaseLock();
+      }
+    }
+
+    // 13. ترتيب الأقسام في قائمة المتجر (للمشرف فقط)
+    if (action === "reorderCategories") {
+      requireAuth_(ss, body, ["admin"]);
+      const ids = (Array.isArray(body.ids) ? body.ids : []).map(function (x) { return String(x).toLowerCase(); });
+
+      const lock = LockService.getScriptLock();
+      lock.waitLock(10000);
+      try {
+        const sheet = getOrCreateSheet_(ss, "Categories", CATEGORY_HEADERS);
+        const table = sheetTable_(sheet, CATEGORY_HEADERS);
+        const idCol = table.headers.indexOf("id");
+        const orderCol = table.headers.indexOf("sortOrder");
+        for (let i = 0; i < table.rows.length; i++) {
+          const pos = ids.indexOf(String(table.rows[i][idCol]).toLowerCase());
+          // Categories missing from the list keep their place after the listed ones
+          sheet.getRange(i + 2, orderCol + 1).setValue(pos >= 0 ? pos + 1 : ids.length + i + 1);
+        }
+        clearProductsCache_();
+        return createResponse({ status: "success", message: "تم حفظ ترتيب الأقسام" });
+      } finally {
+        lock.releaseLock();
+      }
+    }
+
+    // 14. إعدادات واجهة المتجر: صورة / فيديو الصفحة الرئيسية (للمشرف فقط)
+    if (action === "saveSettings") {
+      requireAuth_(ss, body, ["admin"]);
+      const incoming = body.settings || {};
+
+      const lock = LockService.getScriptLock();
+      lock.waitLock(10000);
+      try {
+        const sheet = getOrCreateSheet_(ss, "Settings", ["key", "value"]);
+        const data = sheet.getDataRange().getValues();
+        SETTING_KEYS.forEach(function (key) {
+          if (!(key in incoming)) return;
+          const value = cleanMediaUrl_(incoming[key]);
+          for (let i = 1; i < data.length; i++) {
+            if (String(data[i][0]) === key) {
+              sheet.getRange(i + 1, 2).setValue(value);
+              return;
+            }
+          }
+          sheet.appendRow([key, value]);
+        });
+        clearProductsCache_();
+        return createResponse({ status: "success", message: "تم حفظ إعدادات الواجهة", settings: readSettings_(ss) });
+      } finally {
+        lock.releaseLock();
+      }
     }
 
     return createResponse({ status: "error", message: "Unknown action" });
@@ -1281,29 +1441,119 @@ const PRODUCT_HEADERS = [
   "id", "categoryId", "nameAr", "nameEn", "price", "originalPrice",
   "image", "badgeAr", "badgeEn", "rating", "reviewsCount",
   "isCustomizable", "customFieldLabelAr", "customFieldLabelEn",
-  "descriptionAr", "descriptionEn", "updatedAt"
+  "descriptionAr", "descriptionEn", "updatedAt", "images", "videos"
 ];
 
-function productRow_(prod) {
-  return [
-    String(prod.id),
-    prod.categoryId || "others",
-    prod.nameAr || "",
-    prod.nameEn || "",
-    Number(prod.price) || 0,
-    Number(prod.originalPrice) || 0,
-    prod.image || "",
-    prod.badgeAr || "",
-    prod.badgeEn || "",
-    Number(prod.rating) || 5.0,
-    Number(prod.reviewsCount) || 1,
-    Boolean(prod.isCustomizable),
-    prod.customFieldLabelAr || "",
-    prod.customFieldLabelEn || "",
-    prod.descriptionAr || "",
-    prod.descriptionEn || "",
-    new Date().toISOString()
-  ];
+const CATEGORY_HEADERS = [
+  "id", "nameAr", "nameEn", "icon", "image", "descriptionAr", "descriptionEn",
+  "video", "sortOrder", "isActive"
+];
+
+// Home page banner: a photo, or a video that replaces it
+const SETTING_KEYS = ["heroImage", "heroVideo"];
+
+const MAX_IMAGE_BASE64 = 7 * 1024 * 1024;   // about a 5 MB photo
+const MAX_VIDEO_BASE64 = 34 * 1024 * 1024;  // about a 25 MB video
+
+// Only web links and the store's own files, so nothing else ends up in a page
+function cleanMediaUrl_(value) {
+  const url = String(value || "").trim();
+  return /^(https?:\/\/|assets\/)/i.test(url) ? url : "";
+}
+
+// Several photos / videos are kept in one cell, one link per line
+function mediaList_(value) {
+  const list = Array.isArray(value) ? value : String(value || "").split(/[\n,]+/);
+  return list.map(cleanMediaUrl_).filter(String).slice(0, 20).join("\n");
+}
+
+function productValues_(prod) {
+  const values = {
+    id: String(prod.id),
+    categoryId: prod.categoryId || "others",
+    nameAr: prod.nameAr || "",
+    nameEn: prod.nameEn || "",
+    price: Number(prod.price) || 0,
+    originalPrice: Number(prod.originalPrice) || 0,
+    image: prod.image || "",
+    badgeAr: prod.badgeAr || "",
+    badgeEn: prod.badgeEn || "",
+    rating: Number(prod.rating) || 5.0,
+    reviewsCount: Number(prod.reviewsCount) || 1,
+    isCustomizable: Boolean(prod.isCustomizable),
+    customFieldLabelAr: prod.customFieldLabelAr || "",
+    customFieldLabelEn: prod.customFieldLabelEn || "",
+    descriptionAr: prod.descriptionAr || "",
+    descriptionEn: prod.descriptionEn || "",
+    updatedAt: new Date().toISOString()
+  };
+  // Older admin pages don't send these: leave what the sheet already has
+  if (prod.images !== undefined) values.images = mediaList_(prod.images);
+  if (prod.videos !== undefined) values.videos = mediaList_(prod.videos);
+  return values;
+}
+
+function getOrCreateSheet_(ss, name, headers) {
+  let sheet = ss.getSheetByName(name);
+  if (!sheet) {
+    sheet = ss.insertSheet(name);
+    sheet.appendRow(headers);
+    sheet.setFrozenRows(1);
+  }
+  return sheet;
+}
+
+// Reads a sheet and adds any of `wanted` missing from its header row (sheets made
+// before a column existed). Returns the header row and the data rows.
+function sheetTable_(sheet, wanted) {
+  const values = sheet.getDataRange().getValues();
+  let headers = values.length && values[0].some(function (h) { return String(h) !== ""; }) ? values[0].map(String) : [];
+  const missing = wanted.filter(function (h) { return headers.indexOf(h) === -1; });
+  if (missing.length) {
+    sheet.getRange(1, headers.length + 1, 1, missing.length).setValues([missing]);
+    headers = headers.concat(missing);
+  }
+  return { headers: headers, rows: values.length > 1 ? values.slice(1) : [] };
+}
+
+// Lays out `obj` in the sheet's column order; columns it doesn't mention keep `existing` values
+function rowFromObject_(headers, obj, existing) {
+  return headers.map(function (h, i) {
+    if (Object.prototype.hasOwnProperty.call(obj, h)) return obj[h];
+    return existing && existing[i] !== undefined ? existing[i] : "";
+  });
+}
+
+function readCategories_(ss, includeHidden) {
+  const sheet = ss.getSheetByName("Categories");
+  if (!sheet) return null;
+  const data = sheet.getDataRange().getValues();
+  const headers = data[0] || [];
+  const list = [];
+  for (let i = 1; i < data.length; i++) {
+    if (!data[i][0]) continue;
+    const item = {};
+    headers.forEach(function (h, j) { if (h) item[h] = data[i][j]; });
+    item.id = String(item.id);
+    item.isActive = item.isActive === undefined || item.isActive === "" ? true : isTrue_(item.isActive);
+    item.sortOrder = Number(item.sortOrder) || i;
+    if (includeHidden || item.isActive) list.push(item);
+  }
+  list.sort(function (a, b) { return a.sortOrder - b.sortOrder; });
+  return list;
+}
+
+function readSettings_(ss) {
+  const settings = {};
+  SETTING_KEYS.forEach(function (key) { settings[key] = ""; });
+  const sheet = ss.getSheetByName("Settings");
+  if (!sheet) return settings;
+  const data = sheet.getDataRange().getValues();
+  for (let i = 1; i < data.length; i++) {
+    const key = String(data[i][0]);
+    if (SETTING_KEYS.indexOf(key) !== -1) settings[key] = String(data[i][1] || "");
+  }
+  return settings;
 }
 
 function createResponse(data) {

@@ -17,7 +17,9 @@ Orders are sent through WhatsApp; there is no payment gateway.
   `old-origin`) now only holds redirect pages to the same page on the new address. Push
   store changes to `origin` (nouriistore/nouriistore.github.io), never to `old-origin`.
 
-### The 10 categories
+### Categories
+Categories live in the `Categories` sheet and are managed from the admin page tab
+"الأقسام والواجهة" (admins only). The 10 starting categories:
 كونكريت للتلوين · كتب تلوين · صور مغناطيس و بروش · توزيعات مناسبات · نوت بوك ·
 مطبوعات دينية · ادوات تعليمية للاطفال · مطبوعات · استيكرز · اخرى
 
@@ -35,10 +37,10 @@ copies the site uses live in `assets/images/`.
 | `product.html` | Product page (`product.html?id=<product id>`): gallery, price, name field, qty, add to cart / buy now, tabs, related products, sticky buy bar |
 | `layout.js` | Shared announcement bar, header + category menu, footer, cart drawer, checkout and settings modals, injected into `#site-header`, `#site-footer`, `#site-overlays` on every storefront page |
 | `tailwind-config.js` | Shared Tailwind theme: bright pink `brand` scale (`#e85db3`), El Messiri display font |
-| `products.js` | Fallback product catalog (27 products), used when Google Drive can't be reached |
-| `admin.html`, `admin.js`, `admin.css` | Admin portal: login, products CRUD, users (Admin/Editor), password change, first-login password setup |
+| `products.js` | Fallback catalog (27 products, 10 categories), used until / unless Google Drive answers |
+| `admin.html`, `admin.js`, `admin.css` | Admin portal: login, products CRUD with extra photos and videos, categories + home page banner tab, users (Admin/Editor), password change, first-login password setup |
 | `config.js` | `googleScriptUrl` (live Apps Script web app) and GitHub repo settings |
-| `google_apps_script_backend.js` | Code pasted into Google Apps Script; creates/uses `Products` and `Users` sheets and a `Nourii Media` Drive folder |
+| `google_apps_script_backend.js` | Code pasted into Google Apps Script; creates/uses `Products`, `Categories`, `Settings`, `Users` and `Orders` sheets and a `Nourii Media` Drive folder |
 | `sync_google_to_github.py`, `sync_store.bat` | Pull products from the Sheet, rewrite `products.js`, commit and push |
 | `nourii_products_database.csv` | Product data export for importing into the Sheet |
 | `docs/` | Setup guides (Google Drive setup guide is git-ignored) |
@@ -59,14 +61,24 @@ copies the site uses live in `assets/images/`.
   password: run `resetAdminPassword()` in the Apps Script editor (prints a temp password).
 - The admin page never stores passwords in the browser. If the `admin` row is removed from
   the `Users` sheet, or Drive is unreachable, nobody can log in. Keep that row.
-- Speed: the backend caches `getProducts` for 5 minutes (cleared on product saves and by the
+- Speed: the backend caches `getProducts` and `getStore` for 5 minutes (cleared on product saves and by the
   `onEdit` trigger when the sheet is edited by hand); the storefront reuses a product list
   fetched in the last 5 minutes when moving between pages.
 - Script and style tags in every storefront page and `admin.html` carry a version
   query string for cache busting. Bump it when you change those files.
 - Every header menu item is its own page (home, `shop.html`, `shop.html?cat=<id>` per
-  category, `giveaways.html`). Old `index.html?cat=...` links redirect to `shop.html`. A product can have extra photos in an optional `images` field (array, or comma /
-  new-line separated URLs); they show as thumbnails on its product page.
+  category, `giveaways.html`). Old `index.html?cat=...` links redirect to `shop.html`.
+- The storefront loads everything with one `getStore` call: visible categories (sorted by
+  `sortOrder`), their products, and `settings` (`heroImage` / `heroVideo` for the home page
+  banner). Hidden categories (`isActive` false) and their products are left out. If the
+  backend is older and answers "Unknown action", it falls back to `getProducts`.
+- Media: products have `images` and `videos` columns (one link per line), categories a
+  `video` column. Videos can be YouTube, Instagram, TikTok (full link), Facebook, an upload
+  to Drive (`uploadMedia`, up to 25 MB, played in Drive's player) or an .mp4 link; other links
+  show as a "watch the video" button. Only `http(s)://` and `assets/` links are stored.
+- Category actions (`saveCategory`, `deleteCategory` (empty categories only),
+  `reorderCategories`) and `saveSettings` are admin only. Missing sheet columns are added
+  automatically on the first save.
 - When the Apps Script backend changes, it must be re-pasted in Google Apps Script and
   redeployed; a new deployment gives a new URL that must go into `config.js`.
 
@@ -107,3 +119,14 @@ copies the site uses live in `assets/images/`.
 - 2026-11-01 (Claude Code): Moved the store to the free address https://nouriistore.github.io
   (GitHub organization `nouriistore`). Old `yaminakkady.github.io/nourii/...` links redirect to
   the same page there. Browser data (cart, favorites, admin login) starts fresh on the new address.
+- 2026-11-01 (Claude Code): Added photos and videos (product gallery, product cards, category
+  pages, home page banner) and category management from the admin page (add, edit, hide,
+  reorder, delete); the menu, footer, home tiles and shop chips follow the `Categories`
+  sheet automatically. Owner must redeploy the Apps Script for these to work.
+
+- 2026-11-01 (Antigravity): Upgraded `~/.claude/mcp/antigravity-bridge/server.js` (v2.0.0) so
+  Claude Code can use Gemini 4 Argon (High), Pro, Flash and Flash Lite directly through the
+  running Antigravity app without needing `GEMINI_API_KEY` (fixed `ANTIGRAVITY_PROJECT_ID`
+  resolution on `send-message` and `new-conversation`). Added `claude-bridge`
+  (`~/.claude/mcp/antigravity-bridge/claude-server.js`) and registered both `claude-bridge`
+  and `claude-code` in Antigravity 2.0's global `~/.gemini/config/mcp_config.json`.

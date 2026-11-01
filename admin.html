@@ -25,7 +25,7 @@
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
 
   <!-- Custom Admin Styles -->
-  <link rel="stylesheet" href="admin.css">
+  <link rel="stylesheet" href="admin.css?v=20261101e">
 </head>
 <body class="bg-[#f8f6f4] dark:bg-[#141213] text-[#2b2325] dark:text-[#f7f2f3]">
 
@@ -157,6 +157,11 @@
             <span>إدارة المنتجات</span>
           </div>
 
+          <div onclick="switchTab('categories')" id="tab-btn-categories" class="admin-nav-item hidden">
+            <i class="fa-solid fa-tags text-sm w-5"></i>
+            <span>الأقسام والواجهة</span>
+          </div>
+
           <div onclick="switchTab('users')" id="tab-btn-users" class="admin-nav-item">
             <i class="fa-solid fa-users-gear text-sm w-5"></i>
             <span>إدارة المستخدمين</span>
@@ -249,7 +254,7 @@
             <div class="admin-card p-5 flex items-center justify-between">
               <div>
                 <span class="text-xs font-bold text-stone-500 block mb-1">الأقسام المتاحة</span>
-                <span class="text-3xl font-black text-amber-600">10</span>
+                <span id="stat-total-categories" class="text-3xl font-black text-amber-600">10</span>
               </div>
               <div class="w-12 h-12 rounded-2xl bg-amber-100 dark:bg-amber-900/30 text-amber-600 flex items-center justify-center text-xl">
                 <i class="fa-solid fa-tags"></i>
@@ -331,7 +336,7 @@
 
               <select id="admin-category-filter" onchange="handleCategoryFilter(this.value)" 
                 class="px-3.5 py-2.5 rounded-xl border border-stone-200 dark:border-stone-700 bg-white dark:bg-[#1f1a1c] text-xs font-bold focus:outline-none">
-                <option value="all">جميع الأقسام (10)</option>
+                <option value="all">جميع الأقسام</option>
                 <!-- Categories populated by JS -->
               </select>
             </div>
@@ -366,6 +371,81 @@
                   </tr>
                 </thead>
                 <tbody id="admin-products-table-body">
+                  <!-- Populated by JS -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <!-- ================= TAB: CATEGORIES & HOME PAGE ================= -->
+        <div id="tab-categories" class="hidden space-y-6">
+          <!-- Home page banner -->
+          <div class="admin-card p-6">
+            <h3 class="font-bold text-base mb-1 flex items-center gap-2">
+              <i class="fa-solid fa-house text-pink-600"></i>
+              <span>صورة أو فيديو الصفحة الرئيسية</span>
+            </h3>
+            <p class="text-xs text-stone-500 mb-5">يظهر بجانب عنوان الصفحة الرئيسية. لو أضفت فيديو يظهر بدل الصورة. اترك الحقلين فارغين لعرض الصور الحالية.</p>
+
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              <div>
+                <label class="block text-xs font-bold mb-1">صورة البانر</label>
+                <div class="flex gap-2">
+                  <input type="url" id="hero-image-url" placeholder="رابط صورة أو ارفع من جهازك"
+                    class="flex-1 min-w-0 px-3.5 py-2.5 rounded-xl border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-900 text-xs focus:ring-2 focus:ring-pink-500 focus:outline-none">
+                  <label class="media-upload-btn" title="رفع صورة إلى Google Drive">
+                    <i class="fa-solid fa-image text-pink-600"></i><span class="hidden sm:inline">رفع صورة</span>
+                    <input type="file" accept="image/*" class="hidden" onchange="uploadIntoField(event, 'hero-image-url')">
+                  </label>
+                </div>
+              </div>
+              <div>
+                <label class="block text-xs font-bold mb-1">فيديو البانر</label>
+                <div class="flex gap-2">
+                  <input type="url" id="hero-video-url" placeholder="رابط يوتيوب / انستجرام / تيك توك / فيسبوك"
+                    class="flex-1 min-w-0 px-3.5 py-2.5 rounded-xl border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-900 text-xs focus:ring-2 focus:ring-pink-500 focus:outline-none">
+                  <label class="media-upload-btn" title="رفع فيديو قصير (حتى 25 ميجا) إلى Google Drive">
+                    <i class="fa-solid fa-video text-pink-600"></i><span class="hidden sm:inline">رفع فيديو</span>
+                    <input type="file" accept="video/mp4,video/webm,video/quicktime" class="hidden" onchange="uploadIntoField(event, 'hero-video-url')">
+                  </label>
+                </div>
+              </div>
+            </div>
+
+            <button onclick="saveHomeSettings()" class="mt-5 py-2.5 px-6 rounded-xl bg-pink-600 hover:bg-pink-700 text-white font-bold text-xs flex items-center gap-2">
+              <i class="fa-solid fa-floppy-disk"></i>
+              <span>حفظ الواجهة</span>
+            </button>
+          </div>
+
+          <!-- Categories -->
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div>
+              <h3 class="font-bold text-base">أقسام المتجر</h3>
+              <p class="text-xs text-stone-500">أي قسم تضيفه يظهر تلقائياً في قائمة الموقع والصفحة الرئيسية وصفحة المنتجات. استخدم الأسهم لتغيير الترتيب.</p>
+            </div>
+            <button onclick="openCategoryModal()" class="py-2.5 px-5 rounded-xl bg-pink-600 hover:bg-pink-700 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-sm transition-all whitespace-nowrap">
+              <i class="fa-solid fa-plus"></i>
+              <span>إضافة قسم جديد</span>
+            </button>
+          </div>
+
+          <div class="admin-card overflow-hidden">
+            <div class="overflow-x-auto">
+              <table class="admin-table">
+                <thead>
+                  <tr>
+                    <th>الترتيب</th>
+                    <th>الصورة</th>
+                    <th>اسم القسم</th>
+                    <th>المنتجات</th>
+                    <th>فيديو</th>
+                    <th>الحالة</th>
+                    <th class="text-center">الإجراءات</th>
+                  </tr>
+                </thead>
+                <tbody id="admin-categories-table-body">
                   <!-- Populated by JS -->
                 </tbody>
               </table>
@@ -555,15 +635,51 @@
 
         <!-- Image URL or Upload -->
         <div>
-          <label class="block text-xs font-bold mb-1">رابط أو مسار الصورة *</label>
+          <label class="block text-xs font-bold mb-1">الصورة الرئيسية *</label>
           <div class="flex gap-2">
-            <input type="text" id="prod-image-url" required placeholder="assets/images/concrete-coloring.jpg أو رابط ويب" 
-              class="flex-1 px-3.5 py-2.5 rounded-xl border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-900 text-xs focus:ring-2 focus:ring-pink-500 focus:outline-none">
-            <label class="py-2.5 px-4 rounded-xl bg-stone-100 dark:bg-stone-800 hover:bg-stone-200 text-xs font-bold cursor-pointer flex items-center gap-1.5" title="رفع ملف إلى Google Drive">
+            <input type="text" id="prod-image-url" required placeholder="assets/images/concrete-coloring.jpg أو رابط ويب"
+              class="flex-1 min-w-0 px-3.5 py-2.5 rounded-xl border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-900 text-xs focus:ring-2 focus:ring-pink-500 focus:outline-none">
+            <label class="media-upload-btn" title="رفع ملف إلى Google Drive">
               <i class="fa-solid fa-cloud-arrow-up text-pink-600"></i>
               <span class="hidden sm:inline">رفع لـ Drive</span>
-              <input type="file" id="prod-image-file" accept="image/*" class="hidden" onchange="handleImageFileUpload(event)">
+              <input type="file" id="prod-image-file" accept="image/*" class="hidden" onchange="uploadIntoField(event, 'prod-image-url')">
             </label>
+          </div>
+        </div>
+
+        <!-- Extra photos and videos (shown in the product page gallery) -->
+        <div class="p-3.5 rounded-xl border border-stone-200 dark:border-stone-700 space-y-4">
+          <div>
+            <div class="flex items-center justify-between mb-2">
+              <label class="text-xs font-bold">صور إضافية <span class="font-normal text-stone-400">(تظهر في معرض صفحة المنتج)</span></label>
+              <label class="media-upload-btn py-1.5" title="رفع صورة أو أكثر إلى Google Drive">
+                <i class="fa-solid fa-images text-pink-600"></i><span>رفع صور</span>
+                <input type="file" accept="image/*" multiple class="hidden" onchange="uploadIntoList(event, 'images')">
+              </label>
+            </div>
+            <div id="prod-images-list" class="flex flex-wrap gap-2"></div>
+            <div class="flex gap-2 mt-2">
+              <input type="url" id="prod-images-link" placeholder="أو الصق رابط صورة..."
+                class="flex-1 min-w-0 px-3 py-2 rounded-lg border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-900 text-xs focus:ring-2 focus:ring-pink-500 focus:outline-none">
+              <button type="button" onclick="addMediaLink('images')" class="px-3 rounded-lg bg-stone-100 dark:bg-stone-800 hover:bg-stone-200 text-xs font-bold">إضافة</button>
+            </div>
+          </div>
+
+          <div>
+            <div class="flex items-center justify-between mb-2">
+              <label class="text-xs font-bold">فيديوهات المنتج</label>
+              <label class="media-upload-btn py-1.5" title="رفع فيديو قصير (حتى 25 ميجا) إلى Google Drive">
+                <i class="fa-solid fa-video text-pink-600"></i><span>رفع فيديو</span>
+                <input type="file" accept="video/mp4,video/webm,video/quicktime" class="hidden" onchange="uploadIntoList(event, 'videos')">
+              </label>
+            </div>
+            <div id="prod-videos-list" class="space-y-1.5"></div>
+            <div class="flex gap-2 mt-2">
+              <input type="url" id="prod-videos-link" placeholder="الصق رابط فيديو يوتيوب / انستجرام / تيك توك / فيسبوك"
+                class="flex-1 min-w-0 px-3 py-2 rounded-lg border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-900 text-xs focus:ring-2 focus:ring-pink-500 focus:outline-none">
+              <button type="button" onclick="addMediaLink('videos')" class="px-3 rounded-lg bg-stone-100 dark:bg-stone-800 hover:bg-stone-200 text-xs font-bold">إضافة</button>
+            </div>
+            <p class="text-[10px] text-stone-400 mt-1">الفيديو المرفوع لـ Drive يحتاج دقائق قليلة بعد الرفع قبل أن يعمل على الموقع.</p>
           </div>
         </div>
 
@@ -599,6 +715,91 @@
         <div class="flex justify-end gap-3 pt-4 border-t border-stone-100 dark:border-stone-800">
           <button type="button" onclick="closeProductFormModal()" class="px-5 py-2.5 rounded-xl border border-stone-200 text-xs font-bold">إلغاء</button>
           <button type="submit" class="py-2.5 px-6 rounded-xl bg-pink-600 hover:bg-pink-700 text-white font-bold text-xs">حفظ المنتج</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ================= MODAL: ADD / EDIT CATEGORY ================= -->
+  <div id="category-form-modal" class="fixed inset-0 z-50 flex items-center justify-center p-4 admin-modal-backdrop hidden">
+    <div class="admin-card max-w-xl w-full p-6 sm:p-8 max-h-[92vh] overflow-y-auto">
+      <div class="flex items-center justify-between pb-4 border-b border-stone-200 dark:border-stone-800 mb-6">
+        <h3 id="category-modal-title" class="font-black text-lg">إضافة قسم جديد</h3>
+        <button onclick="closeCategoryModal()" class="w-8 h-8 rounded-full hover:bg-stone-100 dark:hover:bg-stone-800 text-stone-400">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+
+      <form id="category-form" onsubmit="handleCategoryFormSubmit(event)" class="space-y-4">
+        <input type="hidden" id="cat-form-editing">
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <label class="block text-xs font-bold mb-1">اسم القسم بالعربية *</label>
+            <input type="text" id="cat-name-ar" required placeholder="مثال: ألعاب خشبية"
+              class="w-full px-3.5 py-2.5 rounded-xl border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-900 text-xs focus:ring-2 focus:ring-pink-500 focus:outline-none">
+          </div>
+          <div>
+            <label class="block text-xs font-bold mb-1">اسم القسم بالإنجليزية</label>
+            <input type="text" id="cat-name-en" placeholder="e.g. Wooden Toys" oninput="suggestCategoryId()"
+              class="w-full px-3.5 py-2.5 rounded-xl border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-900 text-xs focus:ring-2 focus:ring-pink-500 focus:outline-none">
+          </div>
+        </div>
+
+        <div>
+          <label class="block text-xs font-bold mb-1">رابط صفحة القسم (حروف إنجليزية بدون مسافات)</label>
+          <div class="flex items-center rounded-xl border border-stone-200 dark:border-stone-700 bg-stone-50 dark:bg-stone-800 overflow-hidden" dir="ltr">
+            <span class="px-3 text-[11px] text-stone-400 font-mono whitespace-nowrap">shop.html?cat=</span>
+            <input type="text" id="cat-id" placeholder="wooden-toys" pattern="[a-z0-9_\-]{2,40}"
+              class="flex-1 min-w-0 px-2 py-2.5 bg-white dark:bg-stone-900 text-xs font-mono focus:outline-none read-only:bg-stone-50 read-only:text-stone-400 dark:read-only:bg-stone-800">
+          </div>
+          <p class="text-[10px] text-stone-400 mt-1">يُكتب تلقائياً من الاسم الإنجليزي، ولا يتغير بعد الحفظ حتى لا تتعطل الروابط القديمة.</p>
+        </div>
+
+        <div>
+          <label class="block text-xs font-bold mb-1">صورة القسم</label>
+          <div class="flex gap-2">
+            <input type="text" id="cat-image-url" placeholder="رابط صورة، أو اتركها فارغة لاستخدام صورة أول منتج"
+              class="flex-1 min-w-0 px-3.5 py-2.5 rounded-xl border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-900 text-xs focus:ring-2 focus:ring-pink-500 focus:outline-none">
+            <label class="media-upload-btn" title="رفع صورة إلى Google Drive">
+              <i class="fa-solid fa-image text-pink-600"></i><span class="hidden sm:inline">رفع صورة</span>
+              <input type="file" accept="image/*" class="hidden" onchange="uploadIntoField(event, 'cat-image-url')">
+            </label>
+          </div>
+        </div>
+
+        <div>
+          <label class="block text-xs font-bold mb-1">فيديو القسم (يظهر أعلى صفحة القسم)</label>
+          <div class="flex gap-2">
+            <input type="url" id="cat-video-url" placeholder="رابط يوتيوب / انستجرام / تيك توك / فيسبوك"
+              class="flex-1 min-w-0 px-3.5 py-2.5 rounded-xl border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-900 text-xs focus:ring-2 focus:ring-pink-500 focus:outline-none">
+            <label class="media-upload-btn" title="رفع فيديو قصير (حتى 25 ميجا) إلى Google Drive">
+              <i class="fa-solid fa-video text-pink-600"></i><span class="hidden sm:inline">رفع فيديو</span>
+              <input type="file" accept="video/mp4,video/webm,video/quicktime" class="hidden" onchange="uploadIntoField(event, 'cat-video-url')">
+            </label>
+          </div>
+        </div>
+
+        <div>
+          <label class="block text-xs font-bold mb-1">وصف القسم بالعربية</label>
+          <textarea id="cat-desc-ar" rows="2" placeholder="جملة قصيرة تظهر أعلى صفحة القسم"
+            class="w-full px-3.5 py-2 rounded-xl border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-900 text-xs"></textarea>
+        </div>
+        <div>
+          <label class="block text-xs font-bold mb-1">وصف القسم بالإنجليزية</label>
+          <textarea id="cat-desc-en" rows="2" dir="ltr"
+            class="w-full px-3.5 py-2 rounded-xl border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-900 text-xs"></textarea>
+        </div>
+
+        <label class="flex items-center gap-2 cursor-pointer">
+          <input type="checkbox" id="cat-active" checked class="rounded text-pink-600 w-4 h-4">
+          <span class="text-xs font-bold">ظاهر في المتجر</span>
+          <span class="text-[11px] text-stone-400">(القسم المخفي ومنتجاته لا تظهر للزوار)</span>
+        </label>
+
+        <div class="flex justify-end gap-3 pt-4 border-t border-stone-100 dark:border-stone-800">
+          <button type="button" onclick="closeCategoryModal()" class="px-5 py-2.5 rounded-xl border border-stone-200 text-xs font-bold">إلغاء</button>
+          <button type="submit" id="cat-submit-btn" class="py-2.5 px-6 rounded-xl bg-pink-600 hover:bg-pink-700 text-white font-bold text-xs">حفظ القسم</button>
         </div>
       </form>
     </div>
@@ -763,8 +964,8 @@
   <div id="admin-toast-container" class="fixed top-6 inset-inline-end-6 z-50 flex flex-col gap-2.5 pointer-events-none"></div>
 
   <!-- Scripts -->
-  <script src="config.js?v=20261101d"></script>
-  <script src="products.js?v=20261101d"></script>
-  <script src="admin.js?v=20261101d"></script>
+  <script src="config.js?v=20261101e"></script>
+  <script src="products.js?v=20261101e"></script>
+  <script src="admin.js?v=20261101e"></script>
 </body>
 </html>

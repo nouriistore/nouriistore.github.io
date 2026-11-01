@@ -10,6 +10,7 @@ const ADMIN_STATE = {
   users: [],
   searchQuery: '',
   categoryFilter: 'all',
+  formMedia: { images: [], videos: [] }, // extra photos / videos of the product being edited
   settings: {
     googleScriptUrl: '',
     githubToken: '',
@@ -63,14 +64,18 @@ function loadAdminStoredData() {
       localStorage.setItem('nourii_admin_products', JSON.stringify(ADMIN_STATE.products));
     }
 
-    // 5. Categories
-    if (typeof CATEGORIES !== 'undefined') {
-      ADMIN_STATE.categories = CATEGORIES;
+    // 5. Categories (last list read from Google Drive, else the built-in one)
+    const storedCats = localStorage.getItem('nourii_admin_categories');
+    if (storedCats) {
+      ADMIN_STATE.categories = JSON.parse(storedCats);
+    } else if (typeof CATEGORIES !== 'undefined') {
+      ADMIN_STATE.categories = JSON.parse(JSON.stringify(CATEGORIES));
     }
 
     // If Google Drive URL is active, fetch live data from Google Drive as PRIMARY source
     if (ADMIN_STATE.settings.googleScriptUrl) {
       syncSilentlyFromGoogleDrive();
+      fetchCategoriesFromDrive();
       if (ADMIN_STATE.currentUser) {
         verifySessionWithDrive();
         if (ADMIN_STATE.currentUser.role === 'admin') fetchLiveUsersFromGoogleDrive();
@@ -276,12 +281,14 @@ function updateUserProfileDisplay() {
   applyRoleVisibility();
 }
 
-// Editors manage products only; the users tab is for admins
+// Editors manage products only; the users and categories tabs are for admins
 function applyRoleVisibility() {
   const isAdmin = ADMIN_STATE.currentUser && ADMIN_STATE.currentUser.role === 'admin';
-  const usersTabBtn = document.getElementById('tab-btn-users');
-  if (usersTabBtn) usersTabBtn.classList.toggle('hidden', !isAdmin);
-  if (!isAdmin && ADMIN_STATE.activeTab === 'users') switchTab('overview');
+  ['users', 'categories'].forEach(tab => {
+    const btn = document.getElementById(`tab-btn-${tab}`);
+    if (btn) btn.classList.toggle('hidden', !isAdmin);
+  });
+  if (!isAdmin && ['users', 'categories'].includes(ADMIN_STATE.activeTab)) switchTab('overview');
 }
 
 const PASSWORD_MIN_LENGTH = 8;
@@ -472,12 +479,12 @@ function handleEditUserFormSubmit(e) {
 function switchTab(tabId) {
   ADMIN_STATE.activeTab = tabId;
 
-  const tabs = ['overview', 'products', 'users', 'sync'];
+  const tabs = ['overview', 'products', 'categories', 'users', 'sync'];
   tabs.forEach(t => {
     const el = document.getElementById(`tab-${t}`);
     const btn = document.getElementById(`tab-btn-${t}`);
     if (el) el.classList.toggle('hidden', t !== tabId);
-    if (btn) btn.classList.toggle('active', t !== tabId);
+    if (btn) btn.classList.toggle('active', t === tabId);
   });
 
   const titleEl = document.getElementById('page-title');
@@ -490,6 +497,12 @@ function switchTab(tabId) {
     titleEl.innerText = 'إدارة المنتجات والكتالوج';
     subEl.innerText = 'إضافة، تعديل الأسعار، تغيير الصور، وتخصيص المنتجات';
     renderProductsTable();
+  } else if (tabId === 'categories') {
+    titleEl.innerText = 'الأقسام وواجهة المتجر';
+    subEl.innerText = 'إضافة أقسام جديدة وترتيبها، وصورة أو فيديو الصفحة الرئيسية';
+    renderCategoriesTable();
+    fetchCategoriesFromDrive();
+    fetchHomeSettings();
   } else if (tabId === 'users') {
     titleEl.innerText = 'إدارة المستخدمين والمشرفين';
     subEl.innerText = 'التحكم في صلاحيات الوصول وإنشاء كلمات المرور';
@@ -512,7 +525,9 @@ function refreshAllData() {
 function updateStatCards() {
   const totalProdEl = document.getElementById('stat-total-products');
   const totalUsersEl = document.getElementById('stat-total-users');
+  const totalCatsEl = document.getElementById('stat-total-categories');
   if (totalProdEl) totalProdEl.innerText = ADMIN_STATE.products.length;
+  if (totalCatsEl) totalCatsEl.innerText = ADMIN_STATE.categories.length;
   if (totalUsersEl) totalUsersEl.innerText = ADMIN_STATE.users.length;
 }
 
@@ -520,20 +535,25 @@ function populateCategorySelectors() {
   const filterSelect = document.getElementById('admin-category-filter');
   const formSelect = document.getElementById('prod-category');
 
+  const hiddenNote = c => (c.isActive === false ? ' (مخفي)' : '');
+
   if (filterSelect) {
-    let opts = '<option value="all">جميع الأقسام (10)</option>';
+    let opts = `<option value="all">جميع الأقسام (${ADMIN_STATE.categories.length})</option>`;
     ADMIN_STATE.categories.forEach(c => {
-      opts += `<option value="${c.id}">${c.nameAr} (${c.nameEn})</option>`;
+      opts += `<option value="${escapeHtml(c.id)}">${escapeHtml(c.nameAr)}${c.nameEn ? ` (${escapeHtml(c.nameEn)})` : ''}${hiddenNote(c)}</option>`;
     });
     filterSelect.innerHTML = opts;
+    filterSelect.value = ADMIN_STATE.categories.some(c => c.id === ADMIN_STATE.categoryFilter) ? ADMIN_STATE.categoryFilter : 'all';
   }
 
   if (formSelect) {
+    const selected = formSelect.value;
     let opts = '';
     ADMIN_STATE.categories.forEach(c => {
-      opts += `<option value="${c.id}">${c.nameAr}</option>`;
+      opts += `<option value="${escapeHtml(c.id)}">${escapeHtml(c.nameAr)}${hiddenNote(c)}</option>`;
     });
     formSelect.innerHTML = opts;
+    if (selected) formSelect.value = selected;
   }
 }
 
@@ -573,6 +593,7 @@ function renderProductsTable() {
   tbody.innerHTML = filtered.map(p => {
     const cat = ADMIN_STATE.categories.find(c => c.id === p.categoryId);
     const catName = cat ? cat.nameAr : p.categoryId;
+    const mediaCount = { images: parseMediaList(p.images).length, videos: parseMediaList(p.videos).length };
 
     return `
       <tr>
@@ -582,6 +603,11 @@ function renderProductsTable() {
         <td>
           <div class="font-bold text-sm text-stone-900 dark:text-stone-100">${escapeHtml(p.nameAr)}</div>
           <div class="text-[11px] text-stone-400 font-mono">${escapeHtml(p.nameEn)}</div>
+          ${mediaCount.images || mediaCount.videos ? `
+            <div class="text-[11px] text-stone-500 flex items-center gap-3 mt-0.5">
+              ${mediaCount.images ? `<span><i class="fa-regular fa-images text-pink-500"></i> +${mediaCount.images}</span>` : ''}
+              ${mediaCount.videos ? `<span><i class="fa-solid fa-video text-pink-500"></i> ${mediaCount.videos}</span>` : ''}
+            </div>` : ''}
         </td>
         <td>
           <span class="px-2.5 py-1 rounded-full text-xs font-semibold bg-pink-50 dark:bg-pink-900/30 text-pink-700 dark:text-pink-300">
@@ -640,6 +666,8 @@ function openAddProductModal() {
   if (form) form.reset();
 
   document.getElementById('prod-form-id').value = '';
+  ADMIN_STATE.formMedia = { images: [], videos: [] };
+  renderFormMediaLists();
   modal.classList.remove('hidden');
 }
 
@@ -664,6 +692,8 @@ function openEditProductModal(id) {
   document.getElementById('prod-customizable').checked = Boolean(prod.isCustomizable);
   document.getElementById('prod-custom-label-ar').value = prod.customFieldLabelAr || '';
   document.getElementById('prod-desc-ar').value = prod.descriptionAr || '';
+  ADMIN_STATE.formMedia = { images: parseMediaList(prod.images), videos: parseMediaList(prod.videos) };
+  renderFormMediaLists();
 
   modal.classList.remove('hidden');
 }
@@ -688,6 +718,8 @@ function handleProductFormSubmit(e) {
     price: Number(document.getElementById('prod-price').value) || 0,
     originalPrice: Number(document.getElementById('prod-original-price').value) || 0,
     image: document.getElementById('prod-image-url').value.trim(),
+    images: [...ADMIN_STATE.formMedia.images],
+    videos: [...ADMIN_STATE.formMedia.videos],
     badgeAr: document.getElementById('prod-badge-ar').value.trim(),
     badgeEn: document.getElementById('prod-badge-en').value.trim(),
     rating: 5.0,
@@ -738,6 +770,7 @@ function deleteProduct(id) {
 function saveProductsToStorage() {
   localStorage.setItem('nourii_admin_products', JSON.stringify(ADMIN_STATE.products));
   localStorage.setItem('nourii_live_products', JSON.stringify(ADMIN_STATE.products));
+  markStoreChanged();
 }
 
 // ========================================================
@@ -1076,43 +1109,432 @@ function deleteProductFromGoogleDrive(id) {
     });
 }
 
-function handleImageFileUpload(e) {
-  const file = e.target.files[0];
+// ========================================================
+// PHOTOS & VIDEOS (product gallery, category and home page media)
+// ========================================================
+const MAX_UPLOAD_MB = { image: 5, video: 25 };
+
+// Links kept one per line in the Sheet (or an array)
+function parseMediaList(value) {
+  const list = Array.isArray(value) ? value : String(value || '').split(/[\n,|]+/);
+  return list.map(s => String(s || '').trim()).filter(s => /^(https?:\/\/|assets\/)/i.test(s));
+}
+
+// The storefront plays these sites inside the page; other links become a "watch" button
+function videoLinkLabel(url) {
+  let host = '';
+  try { host = new URL(url).hostname.replace(/^(www|m)\./, ''); } catch (err) { return 'رابط'; }
+  if (host === 'youtu.be' || host.endsWith('youtube.com')) return 'YouTube';
+  if (host.endsWith('instagram.com')) return 'Instagram';
+  if (/^v[mt]\.tiktok\.com$/.test(host)) return 'TikTok (رابط مختصر)';
+  if (host.endsWith('tiktok.com')) return 'TikTok';
+  if (host.endsWith('facebook.com') || host === 'fb.watch') return 'Facebook';
+  if (host === 'drive.google.com') return 'Google Drive';
+  return 'رابط';
+}
+
+// Marks the store's cached data as old so this browser reloads it on the next store visit
+function markStoreChanged() {
+  localStorage.removeItem('nourii_live_store_at');
+}
+
+// Uploads one photo or video to the "Nourii Media" folder in Google Drive and resolves its link
+function uploadMediaFile(file) {
+  const kind = file.type.startsWith('video/') ? 'video' : file.type.startsWith('image/') ? 'image' : null;
+  if (!ADMIN_STATE.settings.googleScriptUrl) {
+    return Promise.reject(new Error('لرفع الملفات يرجى ربط رابط Google Apps Script أولاً في تبويب المزامنة.'));
+  }
+  if (!kind) return Promise.reject(new Error('يمكن رفع الصور أو الفيديو فقط.'));
+  if (file.size > MAX_UPLOAD_MB[kind] * 1024 * 1024) {
+    return Promise.reject(new Error(kind === 'video'
+      ? 'الفيديو أكبر من 25 ميجا. ارفعه على يوتيوب أو انستجرام والصق الرابط بدلاً من ذلك.'
+      : 'الصورة أكبر من 5 ميجا. صغّر حجمها ثم حاول مجدداً.'));
+  }
+
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = evt => resolve(evt.target.result);
+    reader.onerror = () => reject(new Error('تعذر قراءة الملف.'));
+    reader.readAsDataURL(file);
+  })
+    .then(base64Data => driveRequest({
+      // Photos keep the older action name so they still upload before the backend is redeployed
+      action: kind === 'video' ? 'uploadMedia' : 'uploadImage',
+      base64Data,
+      filename: file.name,
+      mimeType: file.type
+    }))
+    .then(res => {
+      if (res.status === 'success' && (res.url || res.imageUrl)) return res.url || res.imageUrl;
+      if (res.message === 'Unknown action') throw new Error('رفع الفيديو يحتاج تحديث كود Google Apps Script أولاً.');
+      throw new Error(res.message || 'فشل الرفع.');
+    });
+}
+
+function setUploadBusy(input, busy) {
+  const label = input && input.closest('label');
+  if (label) label.classList.toggle('is-busy', busy);
+}
+
+// Upload button next to a single link field (main photo, category photo/video, home banner)
+function uploadIntoField(event, fieldId) {
+  const input = event.target;
+  const file = input.files[0];
+  input.value = '';
   if (!file) return;
 
+  const isVideo = file.type.startsWith('video/');
+  showAdminToast(isVideo ? 'جاري رفع الفيديو إلى Google Drive... قد يستغرق دقيقة.' : 'جاري رفع الصورة إلى Google Drive...', 'info');
+  setUploadBusy(input, true);
+  uploadMediaFile(file)
+    .then(url => {
+      document.getElementById(fieldId).value = url;
+      showAdminToast(isVideo ? 'تم رفع الفيديو! 🎬 لا تنسَ الحفظ.' : 'تم رفع الصورة! 🖼️ لا تنسَ الحفظ.', 'success');
+    })
+    .catch(err => showAdminToast(err.message, 'error'))
+    .finally(() => setUploadBusy(input, false));
+}
+
+// Upload buttons of the product's extra photos / videos lists (several files, one after another)
+function uploadIntoList(event, kind) {
+  const input = event.target;
+  const files = [...input.files];
+  input.value = '';
+  if (!files.length) return;
+
+  setUploadBusy(input, true);
+  showAdminToast(`جاري رفع ${files.length} ${kind === 'videos' ? 'فيديو' : 'صورة'} إلى Google Drive...`, 'info');
+  files.reduce((chain, file) => chain.then(() => uploadMediaFile(file)
+    .then(url => {
+      ADMIN_STATE.formMedia[kind].push(url);
+      renderFormMediaLists();
+    })
+    .catch(err => showAdminToast(`${file.name}: ${err.message}`, 'error'))
+  ), Promise.resolve())
+    .then(() => showAdminToast('انتهى الرفع. اضغط "حفظ المنتج" لحفظ التغييرات.', 'success'))
+    .finally(() => setUploadBusy(input, false));
+}
+
+function addMediaLink(kind) {
+  const input = document.getElementById(`prod-${kind}-link`);
+  const url = input.value.trim();
+  if (!/^https?:\/\//i.test(url)) {
+    showAdminToast('الصق رابطاً كاملاً يبدأ بـ https://', 'error');
+    return;
+  }
+  if (kind === 'videos' && videoLinkLabel(url).includes('مختصر')) {
+    showAdminToast('روابط تيك توك المختصرة تظهر كزر فقط. لعرض الفيديو داخل الموقع افتح الرابط وانسخ الرابط الكامل.', 'info');
+  }
+  if (!ADMIN_STATE.formMedia[kind].includes(url)) ADMIN_STATE.formMedia[kind].push(url);
+  input.value = '';
+  renderFormMediaLists();
+}
+
+function removeFormMedia(kind, index) {
+  ADMIN_STATE.formMedia[kind].splice(index, 1);
+  renderFormMediaLists();
+}
+
+function renderFormMediaLists() {
+  const imagesEl = document.getElementById('prod-images-list');
+  const videosEl = document.getElementById('prod-videos-list');
+  const removeBtn = (kind, i) => `
+    <button type="button" onclick="removeFormMedia('${kind}', ${i})" title="حذف"
+      class="w-6 h-6 rounded-full bg-red-600 hover:bg-red-700 text-white text-[10px] flex items-center justify-center flex-shrink-0">
+      <i class="fa-solid fa-xmark"></i>
+    </button>`;
+
+  if (imagesEl) {
+    imagesEl.innerHTML = ADMIN_STATE.formMedia.images.map((src, i) => `
+      <div class="relative">
+        <img src="${escapeHtml(src)}" alt="" class="w-16 h-16 rounded-lg object-cover border border-stone-200 dark:border-stone-700 bg-stone-100">
+        <div class="absolute -top-2 -end-2">${removeBtn('images', i)}</div>
+      </div>`).join('') || '<span class="text-[11px] text-stone-400">لا توجد صور إضافية</span>';
+  }
+  if (videosEl) {
+    videosEl.innerHTML = ADMIN_STATE.formMedia.videos.map((url, i) => `
+      <div class="flex items-center gap-2 px-3 py-2 rounded-lg bg-stone-50 dark:bg-stone-800/60">
+        <i class="fa-solid fa-circle-play text-pink-600"></i>
+        <span class="text-[11px] font-bold whitespace-nowrap">${escapeHtml(videoLinkLabel(url))}</span>
+        <a href="${escapeHtml(url)}" target="_blank" rel="noopener" dir="ltr" class="flex-1 min-w-0 truncate text-[11px] text-stone-500 hover:text-pink-600">${escapeHtml(url)}</a>
+        ${removeBtn('videos', i)}
+      </div>`).join('') || '<span class="text-[11px] text-stone-400">لا توجد فيديوهات</span>';
+  }
+}
+
+// ========================================================
+// CATEGORIES (Categories sheet; the store menu follows it automatically)
+// ========================================================
+function categoryProductCount(id) {
+  return ADMIN_STATE.products.filter(p => p.categoryId === id).length;
+}
+
+function fetchCategoriesFromDrive() {
   const url = ADMIN_STATE.settings.googleScriptUrl;
-  if (!url) {
-    showAdminToast('لرفع الصور إلى Drive، يرجى ربط رابط Google Apps Script أولاً في تبويب المزامنة.', 'error');
+  if (!url) return Promise.resolve();
+  return fetch(`${url}?action=getCategories`)
+    .then(res => res.json())
+    .then(res => {
+      if (res.status === 'success' && Array.isArray(res.data) && res.data.length > 0) {
+        ADMIN_STATE.categories = res.data;
+        localStorage.setItem('nourii_admin_categories', JSON.stringify(res.data));
+        populateCategorySelectors();
+        renderCategoriesTable();
+        renderProductsTable();
+        updateStatCards();
+      }
+    })
+    .catch(err => console.warn('Categories fetch:', err));
+}
+
+function renderCategoriesTable() {
+  const tbody = document.getElementById('admin-categories-table-body');
+  if (!tbody) return;
+  const cats = ADMIN_STATE.categories;
+
+  if (cats.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="7" class="text-center py-12 text-stone-400">لا توجد أقسام بعد.</td></tr>`;
     return;
   }
 
-  showAdminToast('جاري رفع الصورة إلى مجلد Google Drive...', 'info');
+  tbody.innerHTML = cats.map((c, i) => {
+    const id = escapeHtml(c.id);
+    const active = c.isActive !== false;
+    const arrow = (dir, disabled) => `
+      <button onclick="moveCategory('${id}', ${dir})" ${disabled ? 'disabled' : ''} title="${dir < 0 ? 'لأعلى' : 'لأسفل'}"
+        class="w-7 h-6 rounded-md bg-stone-100 dark:bg-stone-800 hover:bg-pink-100 dark:hover:bg-stone-700 text-[10px] disabled:opacity-30 disabled:pointer-events-none">
+        <i class="fa-solid fa-chevron-${dir < 0 ? 'up' : 'down'}"></i>
+      </button>`;
+    return `
+      <tr class="${active ? '' : 'opacity-60'}">
+        <td class="w-16"><div class="flex flex-col gap-1 items-center">${arrow(-1, i === 0)}${arrow(1, i === cats.length - 1)}</div></td>
+        <td class="w-16">
+          ${c.image
+            ? `<img src="${escapeHtml(c.image)}" alt="" class="w-12 h-12 rounded-xl object-cover border border-stone-200 dark:border-stone-700 bg-stone-100">`
+            : `<div class="w-12 h-12 rounded-xl bg-pink-50 dark:bg-stone-800 text-pink-400 flex items-center justify-center"><i class="fa-solid ${escapeHtml(c.icon || 'fa-tag')}"></i></div>`}
+        </td>
+        <td>
+          <div class="font-bold text-sm text-stone-900 dark:text-stone-100">${escapeHtml(c.nameAr)}</div>
+          <div class="text-[11px] text-stone-400 font-mono" dir="ltr">${escapeHtml(c.nameEn || '')} · ?cat=${id}</div>
+        </td>
+        <td><span class="font-black text-sm">${categoryProductCount(c.id)}</span></td>
+        <td>${c.video ? '<i class="fa-solid fa-video text-pink-600" title="فيه فيديو"></i>' : '<span class="text-xs text-stone-400">-</span>'}</td>
+        <td>
+          ${active
+            ? '<span class="text-xs text-emerald-600 font-bold flex items-center gap-1"><i class="fa-solid fa-eye"></i> ظاهر</span>'
+            : '<span class="text-xs text-stone-500 font-bold flex items-center gap-1"><i class="fa-solid fa-eye-slash"></i> مخفي</span>'}
+        </td>
+        <td class="text-center">
+          <div class="flex items-center justify-center gap-2">
+            <a href="shop.html?cat=${encodeURIComponent(c.id)}" target="_blank" class="p-2 rounded-lg bg-stone-100 hover:bg-stone-200 text-stone-700 dark:bg-stone-800 dark:hover:bg-stone-700 dark:text-stone-300" title="فتح صفحة القسم">
+              <i class="fa-solid fa-arrow-up-right-from-square text-xs"></i>
+            </a>
+            <button onclick="openCategoryModal('${id}')" class="p-2 rounded-lg bg-stone-100 hover:bg-stone-200 text-stone-700 dark:bg-stone-800 dark:hover:bg-stone-700 dark:text-stone-300" title="تعديل">
+              <i class="fa-solid fa-pen-to-square text-xs"></i>
+            </button>
+            <button onclick="toggleCategoryVisibility('${id}')" class="p-2 rounded-lg bg-stone-100 hover:bg-stone-200 text-stone-700 dark:bg-stone-800 dark:hover:bg-stone-700 dark:text-stone-300" title="${active ? 'إخفاء من المتجر' : 'إظهار في المتجر'}">
+              <i class="fa-solid ${active ? 'fa-eye-slash' : 'fa-eye'} text-xs"></i>
+            </button>
+            <button onclick="deleteCategory('${id}')" class="p-2 rounded-lg bg-red-50 hover:bg-red-100 text-red-600" title="حذف">
+              <i class="fa-solid fa-trash-can text-xs"></i>
+            </button>
+          </div>
+        </td>
+      </tr>`;
+  }).join('');
+}
 
-  const reader = new FileReader();
-  reader.onload = function(evt) {
-    const base64Data = evt.target.result;
+// Turns an English name into a page link id, e.g. "Wooden Toys" → "wooden-toys"
+function slugifyCategoryId(text) {
+  return String(text || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40);
+}
 
-    driveRequest({
-      action: 'uploadImage',
-      base64Data: base64Data,
-      filename: file.name,
-      mimeType: file.type
-    })
+function suggestCategoryId() {
+  const idInput = document.getElementById('cat-id');
+  if (idInput.readOnly || idInput.dataset.touched) return;
+  idInput.value = slugifyCategoryId(document.getElementById('cat-name-en').value);
+}
+
+function openCategoryModal(id) {
+  const cat = id ? ADMIN_STATE.categories.find(c => c.id === id) : null;
+  const idInput = document.getElementById('cat-id');
+
+  document.getElementById('category-form').reset();
+  document.getElementById('category-modal-title').innerText = cat ? 'تعديل القسم' : 'إضافة قسم جديد';
+  document.getElementById('cat-form-editing').value = cat ? cat.id : '';
+  idInput.readOnly = Boolean(cat);
+  delete idInput.dataset.touched;
+  idInput.oninput = () => { idInput.dataset.touched = '1'; };
+
+  if (cat) {
+    document.getElementById('cat-name-ar').value = cat.nameAr || '';
+    document.getElementById('cat-name-en').value = cat.nameEn || '';
+    idInput.value = cat.id;
+    document.getElementById('cat-image-url').value = cat.image || '';
+    document.getElementById('cat-video-url').value = cat.video || '';
+    document.getElementById('cat-desc-ar').value = cat.descriptionAr || '';
+    document.getElementById('cat-desc-en').value = cat.descriptionEn || '';
+    document.getElementById('cat-active').checked = cat.isActive !== false;
+  }
+  document.getElementById('category-form-modal').classList.remove('hidden');
+}
+
+function closeCategoryModal() {
+  document.getElementById('category-form-modal').classList.add('hidden');
+}
+
+// Sends one category to Google Drive; resolves true when saved
+function saveCategoryToDrive(category, isNew) {
+  return driveRequest({ action: 'saveCategory', category: { ...category, isNew } })
     .then(res => {
-      if (res.status === 'success' && res.imageUrl) {
-        document.getElementById('prod-image-url').value = res.imageUrl;
-        showAdminToast('تم رفع الصورة بنجاح إلى Google Drive! 🖼️', 'success');
-      } else {
-        showAdminToast('فشل رفع الصورة: ' + (res.message || 'خطأ'), 'error');
+      if (res.status !== 'success') {
+        const msg = res.message === 'Unknown action'
+          ? 'إدارة الأقسام تحتاج تحديث كود Google Apps Script أولاً.'
+          : res.message || 'خطأ';
+        showAdminToast(`لم يُحفظ القسم: ${msg}`, 'error');
+        return false;
       }
+      markStoreChanged();
+      return fetchCategoriesFromDrive().then(() => true);
     })
     .catch(err => {
-      console.error(err);
-      showAdminToast('حدث خطأ أثناء رفع الصورة لـ Drive.', 'error');
+      console.warn('Category save:', err);
+      showAdminToast('تعذر الاتصال بـ Google Drive. لم يُحفظ القسم.', 'error');
+      return false;
     });
+}
+
+function handleCategoryFormSubmit(e) {
+  e.preventDefault();
+  const editingId = document.getElementById('cat-form-editing').value;
+  const nameEn = document.getElementById('cat-name-en').value.trim();
+  let id = editingId || document.getElementById('cat-id').value.trim().toLowerCase() || slugifyCategoryId(nameEn);
+  if (!id) id = `cat-${Date.now().toString(36)}`; // Arabic-only name: a short unique id
+
+  if (!editingId && ADMIN_STATE.categories.some(c => c.id === id)) {
+    showAdminToast('يوجد قسم بنفس الرابط. غيّر الرابط أو الاسم الإنجليزي.', 'error');
+    return;
+  }
+
+  const existing = ADMIN_STATE.categories.find(c => c.id === editingId) || {};
+  const category = {
+    id,
+    nameAr: document.getElementById('cat-name-ar').value.trim(),
+    nameEn,
+    icon: existing.icon || 'fa-tag',
+    image: document.getElementById('cat-image-url').value.trim(),
+    video: document.getElementById('cat-video-url').value.trim(),
+    descriptionAr: document.getElementById('cat-desc-ar').value.trim(),
+    descriptionEn: document.getElementById('cat-desc-en').value.trim(),
+    isActive: document.getElementById('cat-active').checked
   };
 
-  reader.readAsDataURL(file);
+  const btn = document.getElementById('cat-submit-btn');
+  btn.disabled = true;
+  showAdminToast('جاري حفظ القسم في Google Drive...', 'info');
+  saveCategoryToDrive(category, !editingId).then(ok => {
+    btn.disabled = false;
+    if (!ok) return;
+    closeCategoryModal();
+    showAdminToast(editingId ? 'تم حفظ القسم ✨ سيظهر التعديل في المتجر خلال دقائق.' : 'تمت إضافة القسم 🎉 سيظهر في قائمة المتجر خلال دقائق.', 'success');
+  });
+}
+
+function toggleCategoryVisibility(id) {
+  const cat = ADMIN_STATE.categories.find(c => c.id === id);
+  if (!cat) return;
+  const show = cat.isActive === false;
+  if (!show && !confirm(`إخفاء قسم "${cat.nameAr}"؟ سيختفي من المتجر هو و${categoryProductCount(id)} منتج فيه حتى تظهره مرة أخرى.`)) return;
+  saveCategoryToDrive({ ...cat, isActive: show }, false).then(ok => {
+    if (ok) showAdminToast(show ? 'القسم ظاهر الآن في المتجر 👁️' : 'تم إخفاء القسم من المتجر.', 'success');
+  });
+}
+
+function moveCategory(id, delta) {
+  const cats = ADMIN_STATE.categories;
+  const from = cats.findIndex(c => c.id === id);
+  const to = from + delta;
+  if (from < 0 || to < 0 || to >= cats.length) return;
+  [cats[from], cats[to]] = [cats[to], cats[from]];
+  renderCategoriesTable();
+
+  driveRequest({ action: 'reorderCategories', ids: cats.map(c => c.id) })
+    .then(res => {
+      if (res.status === 'success') {
+        markStoreChanged();
+        populateCategorySelectors();
+      } else {
+        showAdminToast(`لم يُحفظ الترتيب: ${res.message || 'خطأ'}`, 'error');
+        fetchCategoriesFromDrive();
+      }
+    })
+    .catch(() => {
+      showAdminToast('تعذر حفظ الترتيب (مشكلة اتصال).', 'error');
+      fetchCategoriesFromDrive();
+    });
+}
+
+function deleteCategory(id) {
+  const cat = ADMIN_STATE.categories.find(c => c.id === id);
+  if (!cat) return;
+  const count = categoryProductCount(id);
+  if (count > 0) {
+    showAdminToast(`لا يمكن حذف قسم فيه ${count} منتج. انقل المنتجات لقسم آخر أولاً، أو أخفِ القسم.`, 'error');
+    return;
+  }
+  if (!confirm(`حذف قسم "${cat.nameAr}" نهائياً؟`)) return;
+
+  driveRequest({ action: 'deleteCategory', id })
+    .then(res => {
+      if (res.status === 'success') {
+        markStoreChanged();
+        showAdminToast('تم حذف القسم.', 'info');
+        fetchCategoriesFromDrive();
+      } else {
+        showAdminToast(`لم يُحذف القسم: ${res.message || 'خطأ'}`, 'error');
+      }
+    })
+    .catch(() => showAdminToast('تعذر حذف القسم (مشكلة اتصال).', 'error'));
+}
+
+// ========================================================
+// HOME PAGE BANNER (Settings sheet)
+// ========================================================
+function fetchHomeSettings() {
+  const url = ADMIN_STATE.settings.googleScriptUrl;
+  if (!url) return;
+  fetch(`${url}?action=getStore`)
+    .then(res => res.json())
+    .then(res => {
+      if (res.status !== 'success' || !res.settings) return;
+      document.getElementById('hero-image-url').value = res.settings.heroImage || '';
+      document.getElementById('hero-video-url').value = res.settings.heroVideo || '';
+    })
+    .catch(err => console.warn('Home settings fetch:', err));
+}
+
+function saveHomeSettings() {
+  const settings = {
+    heroImage: document.getElementById('hero-image-url').value.trim(),
+    heroVideo: document.getElementById('hero-video-url').value.trim()
+  };
+  if ([settings.heroImage, settings.heroVideo].some(v => v && !/^(https?:\/\/|assets\/)/i.test(v))) {
+    showAdminToast('الروابط يجب أن تبدأ بـ https://', 'error');
+    return;
+  }
+
+  showAdminToast('جاري حفظ الواجهة...', 'info');
+  driveRequest({ action: 'saveSettings', settings })
+    .then(res => {
+      if (res.status === 'success') {
+        markStoreChanged();
+        showAdminToast('تم حفظ صورة / فيديو الصفحة الرئيسية ✨ يظهر في المتجر خلال دقائق.', 'success');
+      } else {
+        const msg = res.message === 'Unknown action' ? 'تحتاج تحديث كود Google Apps Script أولاً.' : res.message || 'خطأ';
+        showAdminToast(`لم تُحفظ الواجهة: ${msg}`, 'error');
+      }
+    })
+    .catch(() => showAdminToast('تعذر الاتصال بـ Google Drive.', 'error'));
 }
 
 // ========================================================

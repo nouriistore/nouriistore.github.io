@@ -221,6 +221,119 @@ h1, h2, h3, .font-display {
   border-radius: var(--radius-full);
 }
 
+/* Second product photo fades in on hover (mouse devices only) */
+.product-card-img .product-card-img-alt {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  transition: opacity 0.4s ease, transform 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@media (hover: hover) {
+  .product-card:hover .product-card-img .product-card-img-alt {
+    opacity: 1;
+  }
+}
+
+.video-tag {
+  position: absolute;
+  bottom: 12px;
+  inset-inline-start: 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(28, 25, 23, 0.72);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 800;
+  padding: 4px 10px;
+  border-radius: var(--radius-full);
+  pointer-events: none;
+}
+
+/* Embedded videos (YouTube, Instagram, TikTok, Facebook, Google Drive, .mp4) */
+.media-frame {
+  position: relative;
+  overflow: hidden;
+  background: #111;
+  width: 100%;
+}
+
+.media-frame--wide { aspect-ratio: 16 / 9; }
+.media-frame--square { aspect-ratio: 1 / 1; }
+
+/* Phone-style vertical videos: sized by height so they don't fill the whole screen */
+.media-frame--tall {
+  aspect-ratio: 9 / 16;
+  width: auto;
+  height: min(78vh, 640px);
+  max-width: 100%;
+  margin-inline: auto;
+}
+
+.media-frame iframe,
+.media-frame video {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border: 0;
+  object-fit: contain;
+}
+
+.media-frame--link {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  background: var(--primary);
+  color: #fff;
+  font-family: 'El Messiri', 'Cairo', sans-serif;
+  font-weight: 700;
+}
+
+.media-frame--link i { font-size: 44px; }
+
+.shop-banner-media { width: 100%; flex-shrink: 0; }
+.shop-banner-media .media-frame--tall { height: 340px; }
+
+@media (min-width: 640px) {
+  .shop-banner-media { width: 22rem; }
+}
+
+.gallery-thumb-video {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  background: #1c1917;
+  color: #fff;
+}
+
+.gallery-thumb-video img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  opacity: 0.7;
+}
+
+.gallery-thumb-video i {
+  position: relative;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: rgba(232, 93, 179, 0.92);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+}
+
 .price-now {
   color: var(--primary);
   font-weight: 800;

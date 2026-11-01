@@ -24,6 +24,9 @@ const APP_STATE = {
   }
 };
 
+// Home page banner chosen in the admin page (Settings sheet)
+const STORE_SETTINGS = { heroImage: '', heroVideo: '' };
+
 // INITIALIZATION
 document.addEventListener('DOMContentLoaded', () => {
   loadStoredData();
@@ -50,8 +53,9 @@ function applyUrlFilters() {
     window.location.replace(`shop.html${window.location.search}`);
     return;
   }
+  // New categories may only be known once the live list arrives, so any id is accepted here
   const cat = params.get('cat');
-  if (cat && (cat === 'all' || CATEGORIES.some(c => c.id === cat))) APP_STATE.currentCategory = cat;
+  if (cat && /^[\w-]+$/.test(cat)) APP_STATE.currentCategory = cat;
   if (params.get('q')) {
     APP_STATE.searchQuery = params.get('q');
     const searchInput = document.getElementById('search-input');
@@ -63,6 +67,8 @@ function applyUrlFilters() {
 // Re-render everything that depends on the product list or the language
 function renderStorefront() {
   if (typeof renderHeaderNav === 'function') renderHeaderNav();
+  if (typeof renderFooterCategories === 'function') renderFooterCategories();
+  renderHeroMedia();
   renderCategoryShowcase();
   renderFeaturedProducts();
   renderShopBanner();
@@ -90,10 +96,22 @@ function escapeHtml(text) {
 }
 
 // GOOGLE DRIVE PRIMARY SOURCE ENGINE
-const LIVE_PRODUCTS_MAX_AGE_MS = 5 * 60 * 1000;
+// One request brings the visible categories, their products and the home page banner.
+const LIVE_STORE_MAX_AGE_MS = 5 * 60 * 1000;
+
+function replaceItems(target, items) {
+  target.length = 0;
+  items.forEach(item => target.push(item));
+}
+
+function applyLiveStore(store) {
+  if (Array.isArray(store.products) && store.products.length) replaceItems(PRODUCTS, store.products);
+  if (Array.isArray(store.categories) && store.categories.length) replaceItems(CATEGORIES, store.categories);
+  if (store.settings) Object.assign(STORE_SETTINGS, store.settings);
+}
 
 function fetchLiveProductsFromGoogleDrive() {
-  const driveUrl = (typeof NOURII_CONFIG !== 'undefined' && NOURII_CONFIG.googleScriptUrl) 
+  const driveUrl = (typeof NOURII_CONFIG !== 'undefined' && NOURII_CONFIG.googleScriptUrl)
     || localStorage.getItem('nourii_google_script_url');
 
   if (!driveUrl) {
@@ -102,29 +120,38 @@ function fetchLiveProductsFromGoogleDrive() {
     return;
   }
 
-  // Moving between pages reuses a list fetched in the last few minutes instead of asking
+  // Moving between pages reuses data fetched in the last few minutes instead of asking
   // Google again on every click (keeps the store fast when many people visit at once).
-  // A product page whose product isn't in that list still checks Google for it.
-  const fetchedAt = Number(localStorage.getItem('nourii_live_products_at')) || 0;
+  // A product or category page whose item isn't in that data still checks Google for it.
+  const fetchedAt = Number(localStorage.getItem('nourii_live_store_at')) || 0;
   const wantedId = document.getElementById('product-page') ? new URLSearchParams(window.location.search).get('id') : null;
-  const listIsFresh = Date.now() - fetchedAt < LIVE_PRODUCTS_MAX_AGE_MS && localStorage.getItem('nourii_live_products');
-  if (listIsFresh && (!wantedId || PRODUCTS.some(p => p.id === wantedId))) {
+  const wantedCat = APP_STATE.currentCategory !== 'all' ? APP_STATE.currentCategory : null;
+  const isFresh = Date.now() - fetchedAt < LIVE_STORE_MAX_AGE_MS && localStorage.getItem('nourii_live_store');
+  if (isFresh && (!wantedId || PRODUCTS.some(p => p.id === wantedId)) && (!wantedCat || CATEGORIES.some(c => c.id === wantedCat))) {
     APP_STATE.liveLoadFinished = true;
     renderProductPage();
     return;
   }
 
-  fetch(`${driveUrl}?action=getProducts`)
+  fetch(`${driveUrl}?action=getStore`)
     .then(res => res.json())
     .then(res => {
-      if (res.status === 'success' && Array.isArray(res.data) && res.data.length > 0) {
-        PRODUCTS.length = 0;
-        res.data.forEach(p => PRODUCTS.push(p));
-        localStorage.setItem('nourii_live_products', JSON.stringify(res.data));
-        localStorage.setItem('nourii_live_products_at', String(Date.now()));
-        renderStorefront();
-        console.log(`[Nourii] Loaded ${res.data.length} products live from Google Drive database.`);
+      if (res.status === 'success' && Array.isArray(res.products)) return res;
+      // Apps Script not redeployed yet: it only knows getProducts
+      return fetch(`${driveUrl}?action=getProducts`)
+        .then(r => r.json())
+        .then(r => (r.status === 'success' ? { products: r.data } : null));
+    })
+    .then(store => {
+      if (!store || !Array.isArray(store.products) || store.products.length === 0) return;
+      applyLiveStore(store);
+      localStorage.setItem('nourii_live_store', JSON.stringify(store));
+      localStorage.setItem('nourii_live_store_at', String(Date.now()));
+      if (APP_STATE.currentCategory !== 'all' && !CATEGORIES.some(c => c.id === APP_STATE.currentCategory)) {
+        APP_STATE.currentCategory = 'all';
       }
+      renderStorefront();
+      console.log(`[Nourii] Loaded ${store.products.length} products and ${CATEGORIES.length} categories live from Google Drive.`);
     })
     .catch(err => {
       console.warn('[Nourii] Using offline/cached catalog:', err);
@@ -154,18 +181,17 @@ function loadStoredData() {
     const savedSettings = localStorage.getItem('nourii_settings');
     if (savedSettings) APP_STATE.settings = { ...APP_STATE.settings, ...JSON.parse(savedSettings) };
 
-    // Live updated products from Admin / Google Drive
-    const liveProds = localStorage.getItem('nourii_live_products') || localStorage.getItem('nourii_admin_products');
-    if (liveProds) {
-      try {
-        const parsed = JSON.parse(liveProds);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          PRODUCTS.length = 0;
-          parsed.forEach(p => PRODUCTS.push(p));
-        }
-      } catch (err) {
-        console.warn('Error applying live products:', err);
+    // Last store data from Google Drive (or products edited in the admin page on this browser)
+    try {
+      const liveStore = localStorage.getItem('nourii_live_store');
+      const liveProds = localStorage.getItem('nourii_live_products') || localStorage.getItem('nourii_admin_products');
+      if (liveStore) {
+        applyLiveStore(JSON.parse(liveStore));
+      } else if (liveProds) {
+        applyLiveStore({ products: JSON.parse(liveProds) });
       }
+    } catch (err) {
+      console.warn('Error applying live store data:', err);
     }
   } catch (e) {
     console.error('Error loading stored data:', e);
@@ -234,15 +260,20 @@ function renderCategoryShowcase() {
   if (!container) return;
   const isAr = APP_STATE.lang === 'ar';
 
-  container.innerHTML = CATEGORIES.map(cat => `
+  container.innerHTML = CATEGORIES.map(cat => {
+    const img = categoryImage(cat);
+    const name = escapeHtml(categoryName(cat));
+    return `
     <a href="${shopUrl(cat.id)}" class="group text-center">
-      <div class="aspect-square rounded-2xl overflow-hidden bg-stone-100 dark:bg-stone-800 mb-2.5">
-        <img src="${escapeHtml(cat.image)}" alt="${escapeHtml(isAr ? cat.nameAr : cat.nameEn)}" loading="lazy"
-          class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500">
+      <div class="relative aspect-square rounded-2xl overflow-hidden bg-brand-50 dark:bg-stone-800 mb-2.5 flex items-center justify-center">
+        ${img ? `<img src="${escapeHtml(img)}" alt="${name}" loading="lazy"
+          class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500">`
+          : `<i class="fa-solid ${escapeHtml(cat.icon || 'fa-tag')} text-4xl text-brand-300"></i>`}
+        ${cat.video ? '<span class="video-tag"><i class="fa-solid fa-play"></i></span>' : ''}
       </div>
-      <span class="font-display font-bold text-sm sm:text-base group-hover:text-brand-500 transition-colors">${isAr ? cat.nameAr : cat.nameEn}</span>
-    </a>
-  `).join('');
+      <span class="font-display font-bold text-sm sm:text-base group-hover:text-brand-500 transition-colors">${name}</span>
+    </a>`;
+  }).join('');
 }
 
 // HOME PAGE: best sellers (badged / top-rated products first)
@@ -270,7 +301,7 @@ function renderShopBanner() {
     title = isAr ? `نتائج البحث: "${escapeHtml(APP_STATE.searchQuery)}"` : `Search: "${escapeHtml(APP_STATE.searchQuery)}"`;
     desc = '';
   } else if (cat) {
-    title = isAr ? cat.nameAr : cat.nameEn;
+    title = escapeHtml(categoryName(cat));
     desc = isAr ? cat.descriptionAr : cat.descriptionEn;
   } else {
     title = isAr ? 'جميع المنتجات' : 'All Products';
@@ -290,7 +321,9 @@ function renderShopBanner() {
 
   banner.innerHTML = `
     <div class="flex flex-col sm:flex-row items-center gap-6 bg-brand-50 dark:bg-stone-900 rounded-[28px] p-6 sm:p-8">
-      ${cat ? `<img src="${escapeHtml(cat.image)}" alt="${escapeHtml(title)}" class="w-full sm:w-48 h-40 sm:h-36 object-cover rounded-2xl">` : ''}
+      ${cat && cat.video && videoSource(cat.video)
+        ? `<div class="shop-banner-media">${videoFrameHTML(cat.video, { className: 'rounded-2xl' })}</div>`
+        : cat && categoryImage(cat) ? `<img src="${escapeHtml(categoryImage(cat))}" alt="${title}" class="w-full sm:w-48 h-40 sm:h-36 object-cover rounded-2xl">` : ''}
       <div class="text-center sm:text-start">
         <h1 class="text-3xl sm:text-4xl font-bold mb-2">${title}</h1>
         ${desc ? `<p class="text-stone-600 dark:text-stone-300 text-sm sm:text-base leading-relaxed max-w-2xl">${escapeHtml(desc)}</p>` : ''}
@@ -317,7 +350,7 @@ function renderCategories() {
   };
 
   container.innerHTML = chip('all', isAr ? 'الكل' : 'All', PRODUCTS.length) +
-    CATEGORIES.map(cat => chip(cat.id, isAr ? cat.nameAr : cat.nameEn, PRODUCTS.filter(p => p.categoryId === cat.id).length)).join('');
+    CATEGORIES.map(cat => chip(cat.id, escapeHtml(categoryName(cat)), PRODUCTS.filter(p => p.categoryId === cat.id).length)).join('');
 
   container.querySelector('.active')?.scrollIntoView({ block: 'nearest', inline: 'center' });
 }
@@ -329,12 +362,16 @@ function productCardHTML(prod) {
   const name = escapeHtml(isAr ? prod.nameAr : prod.nameEn);
   const onSale = prod.originalPrice && Number(prod.originalPrice) > Number(prod.price);
   const salePercent = onSale ? Math.round((1 - prod.price / prod.originalPrice) * 100) : 0;
+  const images = getProductImages(prod);
+  const hasVideo = getProductVideos(prod).length > 0;
 
   return `
     <div class="product-card group flex flex-col">
       <a href="${productUrl(prod.id)}" class="product-card-img block">
-        <img src="${escapeHtml(prod.image)}" alt="${name}" loading="lazy">
+        <img src="${escapeHtml(images[0] || '')}" alt="${name}" loading="lazy">
+        ${images[1] ? `<img src="${escapeHtml(images[1])}" alt="" loading="lazy" class="product-card-img-alt">` : ''}
         ${onSale ? `<span class="sale-tag">${isAr ? `خصم ${salePercent}%` : `-${salePercent}%`}</span>` : ''}
+        ${hasVideo ? `<span class="video-tag"><i class="fa-solid fa-play"></i>${isAr ? 'فيديو' : 'Video'}</span>` : ''}
         <button onclick="event.preventDefault(); event.stopPropagation(); toggleFavorite('${prod.id}')"
           class="absolute top-3 end-3 w-9 h-9 rounded-full bg-white/95 dark:bg-stone-900/90 flex items-center justify-center text-stone-500 hover:text-brand-500 transition-colors"
           title="${isAr ? 'المفضلة' : 'Wishlist'}">
@@ -440,11 +477,123 @@ function updateFavBadge() {
 let currentPageProduct = null;
 let productPageRenderedId = null;
 
-// Products can carry extra photos in `images` (array, or a comma / new-line separated string from the Sheet)
+// MEDIA: photos and videos
+// Products carry extra photos in `images` and videos in `videos` (array, or one link per line
+// from the Sheet). Categories have one `video`; the home page banner is in STORE_SETTINGS.
+function parseMediaList(value) {
+  const list = Array.isArray(value) ? value : String(value || '').split(/[\n,|]+/);
+  return list.map(s => String(s || '').trim()).filter(s => /^(https?:\/\/|assets\/)/i.test(s));
+}
+
 function getProductImages(prod) {
-  let extra = prod.images || [];
-  if (typeof extra === 'string') extra = extra.split(/[\n,|]+/);
-  return [...new Set([prod.image, ...extra].map(s => String(s || '').trim()).filter(Boolean))];
+  return [...new Set([String(prod.image || '').trim(), ...parseMediaList(prod.images)].filter(Boolean))];
+}
+
+function getProductVideos(prod) {
+  return [...new Set(parseMediaList(prod.videos))];
+}
+
+function categoryName(cat) {
+  return (APP_STATE.lang === 'ar' ? cat.nameAr : cat.nameEn) || cat.nameAr || cat.nameEn || cat.id;
+}
+
+// A category without its own photo borrows its video's thumbnail or one of its products' photos
+function categoryImage(cat) {
+  return cat.image
+    || (cat.video && videoSource(cat.video)?.thumb)
+    || PRODUCTS.find(p => p.categoryId === cat.id && p.image)?.image
+    || '';
+}
+
+// Works out how a video link plays on the page. shape: 'wide' (16:9), 'tall' (9:16) or 'square'.
+// Supports YouTube, Instagram, TikTok, Facebook, Google Drive uploads and direct .mp4/.webm links;
+// anything else becomes a "watch the video" button that opens the link.
+function videoSource(url, { autoplay = false } = {}) {
+  let u;
+  try { u = new URL(url); } catch (err) { return null; }
+  if (!/^https?:$/.test(u.protocol)) return null;
+  const host = u.hostname.replace(/^(www|m)\./, '');
+  let m;
+
+  if (host === 'youtu.be' || host.endsWith('youtube.com')) {
+    const id = host === 'youtu.be' ? u.pathname.split('/')[1]
+      : u.searchParams.get('v') || (u.pathname.match(/\/(?:shorts|embed|live)\/([\w-]+)/) || [])[1];
+    if (id && /^[\w-]+$/.test(id)) {
+      const auto = autoplay ? `&autoplay=1&mute=1&loop=1&playlist=${id}&controls=0` : '';
+      return {
+        kind: 'iframe',
+        src: `https://www.youtube-nocookie.com/embed/${id}?rel=0&playsinline=1${auto}`,
+        shape: u.pathname.startsWith('/shorts/') ? 'tall' : 'wide',
+        thumb: `https://i.ytimg.com/vi/${id}/hqdefault.jpg`
+      };
+    }
+  }
+  if (host.endsWith('instagram.com') && (m = u.pathname.match(/\/(p|reels?|tv)\/([\w-]+)/))) {
+    return { kind: 'iframe', src: `https://www.instagram.com/${m[1] === 'reels' ? 'reel' : m[1]}/${m[2]}/embed`, shape: 'tall' };
+  }
+  if (host.endsWith('tiktok.com') && (m = u.pathname.match(/\/video\/(\d+)/))) {
+    return { kind: 'iframe', src: `https://www.tiktok.com/embed/v2/${m[1]}`, shape: 'tall' };
+  }
+  if (host.endsWith('facebook.com') || host === 'fb.watch') {
+    return {
+      kind: 'iframe',
+      src: `https://www.facebook.com/plugins/video.php?href=${encodeURIComponent(u.href)}&show_text=false`,
+      shape: u.pathname.includes('/reel') ? 'tall' : 'wide'
+    };
+  }
+  if (host === 'drive.google.com') {
+    const id = (u.pathname.match(/\/file\/d\/([\w-]+)/) || [])[1] || u.searchParams.get('id');
+    if (id && /^[\w-]+$/.test(id)) {
+      return {
+        kind: 'iframe',
+        src: `https://drive.google.com/file/d/${id}/preview`,
+        shape: 'square',
+        thumb: `https://drive.google.com/thumbnail?id=${id}&sz=w600`
+      };
+    }
+  }
+  if (/\.(mp4|webm|mov)$/i.test(u.pathname)) {
+    return { kind: 'video', src: u.href, shape: 'square' };
+  }
+  return { kind: 'link', src: u.href, shape: 'wide' };
+}
+
+function videoFrameHTML(url, { autoplay = false, className = '' } = {}) {
+  const v = videoSource(url, { autoplay });
+  if (!v) return '';
+  const cls = `media-frame media-frame--${v.shape} ${className}`;
+  if (v.kind === 'iframe') {
+    return `<div class="${cls}"><iframe src="${escapeHtml(v.src)}" loading="lazy" title="video"
+      allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowfullscreen
+      referrerpolicy="strict-origin-when-cross-origin"></iframe></div>`;
+  }
+  if (v.kind === 'video') {
+    return `<div class="${cls}"><video src="${escapeHtml(v.src)}" controls playsinline preload="metadata"${autoplay ? ' autoplay muted loop' : ''}></video></div>`;
+  }
+  return `<a href="${escapeHtml(v.src)}" target="_blank" rel="noopener" class="${cls} media-frame--link">
+      <i class="fa-solid fa-circle-play"></i><span>${APP_STATE.lang === 'ar' ? 'شاهد الفيديو' : 'Watch the video'}</span></a>`;
+}
+
+// HOME PAGE BANNER: the photo or video picked in the admin page, otherwise the built-in collage
+let heroRenderedKey = null;
+
+function renderHeroMedia() {
+  const el = document.getElementById('hero-media');
+  if (!el) return;
+  if (el.dataset.defaultHtml === undefined) el.dataset.defaultHtml = el.innerHTML;
+
+  const { heroVideo, heroImage } = STORE_SETTINGS;
+  const key = `${heroVideo}|${heroImage}`;
+  if (key === heroRenderedKey) return; // don't restart a playing video on every re-render
+  heroRenderedKey = key;
+
+  if (heroVideo && videoSource(heroVideo)) {
+    el.innerHTML = videoFrameHTML(heroVideo, { autoplay: true, className: 'rounded-2xl' });
+  } else if (heroImage) {
+    el.innerHTML = `<img src="${escapeHtml(heroImage)}" alt="Nourii" class="w-full h-72 sm:h-[26rem] object-cover rounded-2xl">`;
+  } else {
+    el.innerHTML = el.dataset.defaultHtml;
+  }
 }
 
 function renderProductPage() {
@@ -481,6 +630,15 @@ function renderProductPage() {
   const onSale = prod.originalPrice && Number(prod.originalPrice) > Number(prod.price);
   const isFav = APP_STATE.favorites.includes(prod.id);
   const images = getProductImages(prod);
+  const videos = getProductVideos(prod);
+  // Main photo first, then videos, then the other photos
+  galleryMedia = [
+    ...images.slice(0, 1).map(src => ({ type: 'image', src })),
+    ...videos.map(src => ({ type: 'video', src })),
+    ...images.slice(1).map(src => ({ type: 'image', src }))
+  ];
+  galleryAlt = name;
+  if (galleryIndex >= galleryMedia.length || prevQty === null) galleryIndex = 0;
 
   document.title = `${isAr ? prod.nameAr : prod.nameEn} | Nourii`;
 
@@ -498,15 +656,19 @@ function renderProductPage() {
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-14">
       <!-- Gallery -->
       <div>
-        <div class="product-card-img rounded-3xl">
-          <img id="pp-main-img" src="${escapeHtml(images[0])}" alt="${name}">
-        </div>
-        ${images.length > 1 ? `
+        <div id="pp-main-media">${galleryMainHTML(galleryIndex)}</div>
+        ${galleryMedia.length > 1 ? `
           <div class="grid grid-cols-5 gap-3 mt-3">
-            ${images.map((src, i) => `
-              <button onclick="selectGalleryImage(${i})" class="gallery-thumb ${i === 0 ? 'is-active' : ''}" data-index="${i}">
-                <img src="${escapeHtml(src)}" alt="" class="w-full h-full object-cover" loading="lazy">
-              </button>`).join('')}
+            ${galleryMedia.map((item, i) => {
+              const label = `${item.type === 'video' ? (isAr ? 'فيديو' : 'Video') : (isAr ? 'صورة' : 'Photo')} ${i + 1}`;
+              const thumb = item.type === 'video' ? (videoSource(item.src)?.thumb || images[0] || '') : '';
+              return `
+              <button onclick="selectGalleryImage(${i})" class="gallery-thumb ${i === galleryIndex ? 'is-active' : ''}" data-index="${i}" aria-label="${label}">
+                ${item.type === 'video'
+                  ? `<span class="gallery-thumb-video">${thumb ? `<img src="${escapeHtml(thumb)}" alt="" loading="lazy">` : ''}<i class="fa-solid fa-play"></i></span>`
+                  : `<img src="${escapeHtml(item.src)}" alt="" class="w-full h-full object-cover" loading="lazy">`}
+              </button>`;
+            }).join('')}
           </div>` : ''}
       </div>
 
@@ -609,13 +771,24 @@ function setupStickyBuyBar() {
   stickyObserver.observe(buttons);
 }
 
+// Product page gallery: photos and videos of the product shown on the page
+let galleryMedia = [];
+let galleryIndex = 0;
+let galleryAlt = '';
+
+function galleryMainHTML(index) {
+  const item = galleryMedia[index];
+  if (!item) return '<div class="product-card-img rounded-3xl"></div>';
+  if (item.type === 'video') return videoFrameHTML(item.src, { className: 'rounded-3xl' });
+  return `<div class="product-card-img rounded-3xl"><img id="pp-main-img" src="${escapeHtml(item.src)}" alt="${galleryAlt}"></div>`;
+}
+
 function selectGalleryImage(index) {
-  const thumbs = document.querySelectorAll('.gallery-thumb');
-  const main = document.getElementById('pp-main-img');
-  const thumb = thumbs[index];
-  if (!main || !thumb) return;
-  main.src = thumb.querySelector('img').src;
-  thumbs.forEach(t => t.classList.toggle('is-active', t === thumb));
+  const main = document.getElementById('pp-main-media');
+  if (!main || !galleryMedia[index]) return;
+  galleryIndex = index;
+  main.innerHTML = galleryMainHTML(index);
+  document.querySelectorAll('.gallery-thumb').forEach(t => t.classList.toggle('is-active', Number(t.dataset.index) === index));
 }
 
 function selectProductTab(tab) {
