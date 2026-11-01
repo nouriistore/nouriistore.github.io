@@ -11,6 +11,9 @@ const ADMIN_STATE = {
   searchQuery: '',
   categoryFilter: 'all',
   formMedia: { images: [], videos: [] }, // extra photos / videos of the product being edited
+  storeSettings: null, // Settings sheet as last read (admins only)
+  adSlides: [],        // ads slider being edited
+  discounts: null,     // discounts + coupons being edited
   settings: {
     googleScriptUrl: '',
     githubToken: '',
@@ -78,7 +81,10 @@ function loadAdminStoredData() {
       fetchCategoriesFromDrive();
       if (ADMIN_STATE.currentUser) {
         verifySessionWithDrive();
-        if (ADMIN_STATE.currentUser.role === 'admin') fetchLiveUsersFromGoogleDrive();
+        if (ADMIN_STATE.currentUser.role === 'admin') {
+          fetchLiveUsersFromGoogleDrive();
+          loadStoreSettings();
+        }
       }
     }
 
@@ -198,7 +204,10 @@ function completeUserLogin(user, token) {
 
   showAdminToast(`مرحباً بك مجدداً، ${user.fullName || user.username} 👋`, 'success');
   checkAuthSession();
-  if (user.role === 'admin') fetchLiveUsersFromGoogleDrive();
+  if (user.role === 'admin') {
+    fetchLiveUsersFromGoogleDrive();
+    loadStoreSettings(true);
+  }
 }
 
 function checkLoginWithGoogleDrive(username, password) {
@@ -281,14 +290,17 @@ function updateUserProfileDisplay() {
   applyRoleVisibility();
 }
 
-// Editors manage products only; the users and categories tabs are for admins
+// Editors manage products only; everything else is for admins
+const ADMIN_ONLY_TABS = ['categories', 'discounts', 'appearance', 'store', 'users'];
+
 function applyRoleVisibility() {
   const isAdmin = ADMIN_STATE.currentUser && ADMIN_STATE.currentUser.role === 'admin';
-  ['users', 'categories'].forEach(tab => {
+  ADMIN_ONLY_TABS.forEach(tab => {
     const btn = document.getElementById(`tab-btn-${tab}`);
     if (btn) btn.classList.toggle('hidden', !isAdmin);
   });
-  if (!isAdmin && ['users', 'categories'].includes(ADMIN_STATE.activeTab)) switchTab('overview');
+  document.querySelectorAll('.admin-only').forEach(el => el.classList.toggle('hidden', !isAdmin));
+  if (!isAdmin && ADMIN_ONLY_TABS.includes(ADMIN_STATE.activeTab)) switchTab('overview');
 }
 
 const PASSWORD_MIN_LENGTH = 8;
@@ -479,7 +491,7 @@ function handleEditUserFormSubmit(e) {
 function switchTab(tabId) {
   ADMIN_STATE.activeTab = tabId;
 
-  const tabs = ['overview', 'products', 'categories', 'users', 'sync'];
+  const tabs = ['overview', 'products', 'categories', 'discounts', 'appearance', 'store', 'users', 'sync'];
   tabs.forEach(t => {
     const el = document.getElementById(`tab-${t}`);
     const btn = document.getElementById(`tab-btn-${t}`);
@@ -498,19 +510,32 @@ function switchTab(tabId) {
     subEl.innerText = 'إضافة، تعديل الأسعار، تغيير الصور، وتخصيص المنتجات';
     renderProductsTable();
   } else if (tabId === 'categories') {
-    titleEl.innerText = 'الأقسام وواجهة المتجر';
-    subEl.innerText = 'إضافة أقسام جديدة وترتيبها، وصورة أو فيديو الصفحة الرئيسية';
+    titleEl.innerText = 'الأقسام';
+    subEl.innerText = 'إضافة أقسام جديدة وترتيبها وإخفاؤها';
     renderCategoriesTable();
     fetchCategoriesFromDrive();
-    fetchHomeSettings();
+  } else if (tabId === 'discounts') {
+    titleEl.innerText = 'الخصومات وأكواد الخصم';
+    subEl.innerText = 'خصم على كل المتجر أو قسم أو منتج، وأكواد يكتبها العميل في السلة';
+    renderDiscountsEditor();
+    loadStoreSettings();
+  } else if (tabId === 'appearance') {
+    titleEl.innerText = 'الإعلانات والواجهة';
+    subEl.innerText = 'إعلانات أعلى الصفحة الرئيسية، شريط الإعلان، وبانر الصفحة الرئيسية';
+    renderAdsList();
+    loadStoreSettings();
+  } else if (tabId === 'store') {
+    titleEl.innerText = 'واتساب وروابط المتجر';
+    subEl.innerText = 'رقم استقبال الطلبات وروابط السوشيال ميديا';
+    loadStoreSettings();
   } else if (tabId === 'users') {
     titleEl.innerText = 'إدارة المستخدمين والمشرفين';
     subEl.innerText = 'التحكم في صلاحيات الوصول وإنشاء كلمات المرور';
     renderUsersTable();
     fetchLiveUsersFromGoogleDrive(false);
   } else if (tabId === 'sync') {
-    titleEl.innerText = 'إعدادات Google Drive & GitHub';
-    subEl.innerText = 'ربط قاعدة بيانات Google Sheets كمصدر رئيسي ومزامنة المستودع';
+    titleEl.innerText = 'متقدم: Google Drive و GitHub';
+    subEl.innerText = 'رابط قاعدة البيانات، ونسخة products.js الاحتياطية على GitHub';
     loadSyncSettingsInputs();
   }
 }
@@ -529,6 +554,15 @@ function updateStatCards() {
   if (totalProdEl) totalProdEl.innerText = ADMIN_STATE.products.length;
   if (totalCatsEl) totalCatsEl.innerText = ADMIN_STATE.categories.length;
   if (totalUsersEl) totalUsersEl.innerText = ADMIN_STATE.users.length;
+
+  const waEl = document.getElementById('stat-whatsapp');
+  if (waEl) {
+    const number = ADMIN_STATE.storeSettings && ADMIN_STATE.storeSettings.whatsappNumber;
+    const known = ADMIN_STATE.storeSettings !== null;
+    waEl.textContent = number ? `+${number}` : known ? 'غير مضبوط! اضغط للضبط' : '...';
+    waEl.classList.toggle('text-red-600', known && !number);
+    waEl.classList.toggle('text-emerald-600', !known || Boolean(number));
+  }
 }
 
 function populateCategorySelectors() {
@@ -617,6 +651,7 @@ function renderProductsTable() {
         <td>
           <div class="font-black text-sm text-pink-600">${p.price} ج.م</div>
           ${p.originalPrice ? `<span class="text-xs text-stone-400 line-through">${p.originalPrice} ج.م</span>` : ''}
+          ${productDiscountPercent(p) ? `<span class="block text-[11px] font-bold text-amber-700">خصم ${productDiscountPercent(p)}% ← ${Math.round(p.price * (100 - productDiscountPercent(p)) / 100)} ج.م</span>` : ''}
         </td>
         <td>
           ${p.badgeAr ? `
@@ -709,8 +744,11 @@ function handleProductFormSubmit(e) {
   const idInput = document.getElementById('prod-form-id').value;
   const isEditing = Boolean(idInput);
   const id = isEditing ? idInput : `prod-${Date.now()}`;
+  // Editing keeps what the form doesn't show (English description, rating...)
+  const existing = isEditing ? ADMIN_STATE.products.find(p => p.id === id) || {} : { rating: 5.0, reviewsCount: 1, descriptionEn: '' };
 
   const productObj = {
+    ...existing,
     id: id,
     categoryId: document.getElementById('prod-category').value,
     nameAr: document.getElementById('prod-name-ar').value.trim(),
@@ -722,49 +760,51 @@ function handleProductFormSubmit(e) {
     videos: [...ADMIN_STATE.formMedia.videos],
     badgeAr: document.getElementById('prod-badge-ar').value.trim(),
     badgeEn: document.getElementById('prod-badge-en').value.trim(),
-    rating: 5.0,
-    reviewsCount: 1,
     isCustomizable: document.getElementById('prod-customizable').checked,
     customFieldLabelAr: document.getElementById('prod-custom-label-ar').value.trim(),
-    descriptionAr: document.getElementById('prod-desc-ar').value.trim(),
-    descriptionEn: ''
+    descriptionAr: document.getElementById('prod-desc-ar').value.trim()
   };
 
-  if (isEditing) {
-    const idx = ADMIN_STATE.products.findIndex(p => p.id === id);
-    if (idx > -1) ADMIN_STATE.products[idx] = { ...ADMIN_STATE.products[idx], ...productObj };
-  } else {
-    ADMIN_STATE.products.unshift(productObj);
+  const applyLocally = () => {
+    if (isEditing) {
+      const idx = ADMIN_STATE.products.findIndex(p => p.id === id);
+      if (idx > -1) ADMIN_STATE.products[idx] = productObj;
+    } else {
+      ADMIN_STATE.products.unshift(productObj);
+    }
+    saveProductsToStorage();
+    closeProductFormModal();
+    renderProductsTable();
+    updateStatCards();
+  };
+
+  if (!ADMIN_STATE.settings.googleScriptUrl) {
+    applyLocally();
+    showAdminToast(isEditing ? 'تم حفظ التعديل على هذا الجهاز فقط.' : 'تمت إضافة المنتج على هذا الجهاز فقط.', 'info');
+    return;
   }
 
-  saveProductsToStorage();
-  closeProductFormModal();
-  renderProductsTable();
-  updateStatCards();
-
-  showAdminToast(isEditing ? 'تم حفظ التعديل! ✨' : 'تمت إضافة المنتج بنجاح! 🎉', 'success');
-
-  // مزامنة فورية مع Google Drive إذا كان مربوطاً كقاعدة بيانات
-  if (ADMIN_STATE.settings.googleScriptUrl) {
-    syncProductToGoogleDrive(productObj);
-  }
+  const button = e.submitter || document.querySelector('#product-form [type="submit"]');
+  saveWithProgress(isEditing ? `حفظ "${productObj.nameAr}"` : `إضافة "${productObj.nameAr}"`, { action: 'saveProduct', product: productObj }, {
+    button,
+    doneMessage: 'تم الحفظ ✓ يظهر في الموقع خلال دقائق'
+  }).then(res => { if (res) applyLocally(); });
 }
 
 function deleteProduct(id) {
   const prod = ADMIN_STATE.products.find(p => p.id === id);
   const name = prod ? prod.nameAr : '';
+  if (!confirm(`هل أنت متأكد من حذف المنتج: "${name}"؟`)) return;
 
-  if (confirm(`هل أنت متأكد من حذف المنتج: "${name}"؟`)) {
+  const removeLocally = () => {
     ADMIN_STATE.products = ADMIN_STATE.products.filter(p => p.id !== id);
     saveProductsToStorage();
     renderProductsTable();
     updateStatCards();
-    showAdminToast('تم حذف المنتج بنجاح.', 'info');
-
-    if (ADMIN_STATE.settings.googleScriptUrl) {
-      deleteProductFromGoogleDrive(id);
-    }
-  }
+  };
+  if (!ADMIN_STATE.settings.googleScriptUrl) return removeLocally();
+  saveWithProgress(`حذف "${name}"`, { action: 'deleteProduct', id }, { doneMessage: 'تم الحذف ✓' })
+    .then(res => { if (res) removeLocally(); });
 }
 
 function saveProductsToStorage() {
@@ -1040,6 +1080,7 @@ function pushToGoogleDrive() {
     return;
   }
 
+  if (!confirm(`سيتم مسح كل منتجات Google Sheet واستبدالها بالـ ${ADMIN_STATE.products.length} منتج الموجودين في هذا المتصفح. استخدمه فقط لاستعادة نسخة. متابعة؟`)) return;
   showAdminToast('جاري تصدير ومزامنة جميع المنتجات إلى Google Sheet...', 'info');
 
   const prods = ADMIN_STATE.products;
@@ -1083,32 +1124,6 @@ function pushToGoogleDrive() {
   });
 }
 
-function syncProductToGoogleDrive(product) {
-  if (!ADMIN_STATE.settings.googleScriptUrl) return;
-
-  driveRequest({ action: 'saveProduct', product: product })
-    .then(d => {
-      if (d.status !== 'success') showAdminToast(`لم يُحفظ المنتج في Google Drive: ${d.message || 'خطأ'}`, 'error');
-    })
-    .catch(e => {
-      console.warn('Drive sync background err:', e);
-      showAdminToast('تعذر حفظ المنتج في Google Drive (مشكلة اتصال).', 'error');
-    });
-}
-
-function deleteProductFromGoogleDrive(id) {
-  if (!ADMIN_STATE.settings.googleScriptUrl) return;
-
-  driveRequest({ action: 'deleteProduct', id: id })
-    .then(d => {
-      if (d.status !== 'success') showAdminToast(`لم يُحذف المنتج من Google Drive: ${d.message || 'خطأ'}`, 'error');
-    })
-    .catch(e => {
-      console.warn('Drive delete background err:', e);
-      showAdminToast('تعذر حذف المنتج من Google Drive (مشكلة اتصال).', 'error');
-    });
-}
-
 // ========================================================
 // PHOTOS & VIDEOS (product gallery, category and home page media)
 // ========================================================
@@ -1138,8 +1153,10 @@ function markStoreChanged() {
   localStorage.removeItem('nourii_live_store_at');
 }
 
-// Uploads one photo or video to the "Nourii Media" folder in Google Drive and resolves its link
-function uploadMediaFile(file) {
+// Uploads one photo or video to the "Nourii Media" folder in Google Drive and resolves its link.
+// The progress panel shows: reading the file (real %), sending it (browsers can't measure an
+// upload to Apps Script, so the bar follows the time expected for its size), then done.
+function uploadMediaFile(file, task) {
   const kind = file.type.startsWith('video/') ? 'video' : file.type.startsWith('image/') ? 'image' : null;
   if (!ADMIN_STATE.settings.googleScriptUrl) {
     return Promise.reject(new Error('لرفع الملفات يرجى ربط رابط Google Apps Script أولاً في تبويب المزامنة.'));
@@ -1151,19 +1168,42 @@ function uploadMediaFile(file) {
       : 'الصورة أكبر من 5 ميجا. صغّر حجمها ثم حاول مجدداً.'));
   }
 
+  const sizeMB = file.size / (1024 * 1024);
+  const sizeLabel = sizeMB >= 1 ? `${sizeMB.toFixed(1)} ميجا` : `${Math.max(1, Math.round(file.size / 1024))} كيلو`;
+
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
+    reader.onprogress = evt => {
+      if (task && evt.lengthComputable) {
+        task.update(`الخطوة 1 من 2: تجهيز الملف (${Math.round(evt.loaded / evt.total * 100)}%)`, 0.1 * evt.loaded / evt.total);
+      }
+    };
     reader.onload = evt => resolve(evt.target.result);
     reader.onerror = () => reject(new Error('تعذر قراءة الملف.'));
     reader.readAsDataURL(file);
   })
-    .then(base64Data => driveRequest({
-      // Photos keep the older action name so they still upload before the backend is redeployed
-      action: kind === 'video' ? 'uploadMedia' : 'uploadImage',
-      base64Data,
-      filename: file.name,
-      mimeType: file.type
-    }))
+    .then(base64Data => {
+      const expectedSeconds = 3 + sizeMB * 2.5;
+      const sentAt = Date.now();
+      const step = () => {
+        const elapsed = (Date.now() - sentAt) / 1000;
+        const left = Math.max(1, Math.round(expectedSeconds - elapsed));
+        task.update(
+          elapsed < expectedSeconds
+            ? `الخطوة 2 من 2: الرفع إلى Google Drive (${sizeLabel}) — متبقي حوالي ${left} ث`
+            : `الخطوة 2 من 2: Google Drive يحفظ الملف (${sizeLabel})... لحظات`,
+          0.1 + 0.85 * Math.min(0.97, elapsed / expectedSeconds)
+        );
+      };
+      const timer = task ? (step(), setInterval(step, 400)) : null;
+      return driveRequest({
+        // Photos keep the older action name so they still upload before the backend is redeployed
+        action: kind === 'video' ? 'uploadMedia' : 'uploadImage',
+        base64Data,
+        filename: file.name,
+        mimeType: file.type
+      }).finally(() => clearInterval(timer));
+    })
     .then(res => {
       if (res.status === 'success' && (res.url || res.imageUrl)) return res.url || res.imageUrl;
       if (res.message === 'Unknown action') throw new Error('رفع الفيديو يحتاج تحديث كود Google Apps Script أولاً.');
@@ -1176,23 +1216,30 @@ function setUploadBusy(input, busy) {
   if (label) label.classList.toggle('is-busy', busy);
 }
 
+// Runs uploads one after another, each with its own progress line; calls onUploaded(url, file)
+function uploadFilesWithProgress(input, files, onUploaded) {
+  setUploadBusy(input, true);
+  return files.reduce((chain, file) => chain.then(() => {
+    const task = startTask(`رفع ${file.name}`);
+    return uploadMediaFile(file, task)
+      .then(url => {
+        onUploaded(url, file);
+        task.done(file.type.startsWith('video/')
+          ? 'تم رفع الفيديو ✓ (يعمل على الموقع بعد دقائق قليلة) — لا تنسَ الحفظ'
+          : 'تم رفع الصورة ✓ — لا تنسَ الحفظ');
+      })
+      .catch(err => task.fail(err.message));
+  }), Promise.resolve())
+    .finally(() => setUploadBusy(input, false));
+}
+
 // Upload button next to a single link field (main photo, category photo/video, home banner)
 function uploadIntoField(event, fieldId) {
   const input = event.target;
-  const file = input.files[0];
+  const files = [...input.files].slice(0, 1);
   input.value = '';
-  if (!file) return;
-
-  const isVideo = file.type.startsWith('video/');
-  showAdminToast(isVideo ? 'جاري رفع الفيديو إلى Google Drive... قد يستغرق دقيقة.' : 'جاري رفع الصورة إلى Google Drive...', 'info');
-  setUploadBusy(input, true);
-  uploadMediaFile(file)
-    .then(url => {
-      document.getElementById(fieldId).value = url;
-      showAdminToast(isVideo ? 'تم رفع الفيديو! 🎬 لا تنسَ الحفظ.' : 'تم رفع الصورة! 🖼️ لا تنسَ الحفظ.', 'success');
-    })
-    .catch(err => showAdminToast(err.message, 'error'))
-    .finally(() => setUploadBusy(input, false));
+  if (!files.length) return;
+  uploadFilesWithProgress(input, files, url => { document.getElementById(fieldId).value = url; });
 }
 
 // Upload buttons of the product's extra photos / videos lists (several files, one after another)
@@ -1201,18 +1248,10 @@ function uploadIntoList(event, kind) {
   const files = [...input.files];
   input.value = '';
   if (!files.length) return;
-
-  setUploadBusy(input, true);
-  showAdminToast(`جاري رفع ${files.length} ${kind === 'videos' ? 'فيديو' : 'صورة'} إلى Google Drive...`, 'info');
-  files.reduce((chain, file) => chain.then(() => uploadMediaFile(file)
-    .then(url => {
-      ADMIN_STATE.formMedia[kind].push(url);
-      renderFormMediaLists();
-    })
-    .catch(err => showAdminToast(`${file.name}: ${err.message}`, 'error'))
-  ), Promise.resolve())
-    .then(() => showAdminToast('انتهى الرفع. اضغط "حفظ المنتج" لحفظ التغييرات.', 'success'))
-    .finally(() => setUploadBusy(input, false));
+  uploadFilesWithProgress(input, files, url => {
+    ADMIN_STATE.formMedia[kind].push(url);
+    renderFormMediaLists();
+  });
 }
 
 function addMediaLink(kind) {
@@ -1281,6 +1320,8 @@ function fetchCategoriesFromDrive() {
         populateCategorySelectors();
         renderCategoriesTable();
         renderProductsTable();
+        renderDiscountsEditor();
+        populateStorePagesList();
         updateStatCards();
       }
     })
@@ -1384,24 +1425,12 @@ function closeCategoryModal() {
 }
 
 // Sends one category to Google Drive; resolves true when saved
-function saveCategoryToDrive(category, isNew) {
-  return driveRequest({ action: 'saveCategory', category: { ...category, isNew } })
-    .then(res => {
-      if (res.status !== 'success') {
-        const msg = res.message === 'Unknown action'
-          ? 'إدارة الأقسام تحتاج تحديث كود Google Apps Script أولاً.'
-          : res.message || 'خطأ';
-        showAdminToast(`لم يُحفظ القسم: ${msg}`, 'error');
-        return false;
-      }
-      markStoreChanged();
-      return fetchCategoriesFromDrive().then(() => true);
-    })
-    .catch(err => {
-      console.warn('Category save:', err);
-      showAdminToast('تعذر الاتصال بـ Google Drive. لم يُحفظ القسم.', 'error');
-      return false;
-    });
+function saveCategoryToDrive(category, isNew, button) {
+  const title = isNew ? `إضافة قسم "${category.nameAr}"` : `حفظ قسم "${category.nameAr}"`;
+  return saveWithProgress(title, { action: 'saveCategory', category: { ...category, isNew } }, {
+    button,
+    doneMessage: 'تم الحفظ ✓ يظهر في قائمة الموقع خلال دقائق'
+  }).then(res => (res ? fetchCategoriesFromDrive().then(() => true) : false));
 }
 
 function handleCategoryFormSubmit(e) {
@@ -1429,14 +1458,8 @@ function handleCategoryFormSubmit(e) {
     isActive: document.getElementById('cat-active').checked
   };
 
-  const btn = document.getElementById('cat-submit-btn');
-  btn.disabled = true;
-  showAdminToast('جاري حفظ القسم في Google Drive...', 'info');
-  saveCategoryToDrive(category, !editingId).then(ok => {
-    btn.disabled = false;
-    if (!ok) return;
-    closeCategoryModal();
-    showAdminToast(editingId ? 'تم حفظ القسم ✨ سيظهر التعديل في المتجر خلال دقائق.' : 'تمت إضافة القسم 🎉 سيظهر في قائمة المتجر خلال دقائق.', 'success');
+  saveCategoryToDrive(category, !editingId, document.getElementById('cat-submit-btn')).then(ok => {
+    if (ok) closeCategoryModal();
   });
 }
 
@@ -1445,9 +1468,7 @@ function toggleCategoryVisibility(id) {
   if (!cat) return;
   const show = cat.isActive === false;
   if (!show && !confirm(`إخفاء قسم "${cat.nameAr}"؟ سيختفي من المتجر هو و${categoryProductCount(id)} منتج فيه حتى تظهره مرة أخرى.`)) return;
-  saveCategoryToDrive({ ...cat, isActive: show }, false).then(ok => {
-    if (ok) showAdminToast(show ? 'القسم ظاهر الآن في المتجر 👁️' : 'تم إخفاء القسم من المتجر.', 'success');
-  });
+  saveCategoryToDrive({ ...cat, isActive: show }, false);
 }
 
 function moveCategory(id, delta) {
@@ -1458,20 +1479,8 @@ function moveCategory(id, delta) {
   [cats[from], cats[to]] = [cats[to], cats[from]];
   renderCategoriesTable();
 
-  driveRequest({ action: 'reorderCategories', ids: cats.map(c => c.id) })
-    .then(res => {
-      if (res.status === 'success') {
-        markStoreChanged();
-        populateCategorySelectors();
-      } else {
-        showAdminToast(`لم يُحفظ الترتيب: ${res.message || 'خطأ'}`, 'error');
-        fetchCategoriesFromDrive();
-      }
-    })
-    .catch(() => {
-      showAdminToast('تعذر حفظ الترتيب (مشكلة اتصال).', 'error');
-      fetchCategoriesFromDrive();
-    });
+  saveWithProgress('حفظ ترتيب الأقسام', { action: 'reorderCategories', ids: cats.map(c => c.id) })
+    .then(res => (res ? populateCategorySelectors() : fetchCategoriesFromDrive()));
 }
 
 function deleteCategory(id) {
@@ -1484,57 +1493,432 @@ function deleteCategory(id) {
   }
   if (!confirm(`حذف قسم "${cat.nameAr}" نهائياً؟`)) return;
 
-  driveRequest({ action: 'deleteCategory', id })
-    .then(res => {
-      if (res.status === 'success') {
-        markStoreChanged();
-        showAdminToast('تم حذف القسم.', 'info');
-        fetchCategoriesFromDrive();
-      } else {
-        showAdminToast(`لم يُحذف القسم: ${res.message || 'خطأ'}`, 'error');
-      }
-    })
-    .catch(() => showAdminToast('تعذر حذف القسم (مشكلة اتصال).', 'error'));
+  saveWithProgress(`حذف قسم "${cat.nameAr}"`, { action: 'deleteCategory', id }, { doneMessage: 'تم الحذف ✓' })
+    .then(res => { if (res) fetchCategoriesFromDrive(); });
 }
 
 // ========================================================
-// HOME PAGE BANNER (Settings sheet)
+// PROGRESS PANEL: every upload and save shows here while it runs (step, bar, seconds),
+// then "done" or what went wrong
 // ========================================================
-function fetchHomeSettings() {
-  const url = ADMIN_STATE.settings.googleScriptUrl;
-  if (!url) return;
-  fetch(`${url}?action=getStore`)
-    .then(res => res.json())
-    .then(res => {
-      if (res.status !== 'success' || !res.settings) return;
-      document.getElementById('hero-image-url').value = res.settings.heroImage || '';
-      document.getElementById('hero-video-url').value = res.settings.heroVideo || '';
-    })
-    .catch(err => console.warn('Home settings fetch:', err));
-}
-
-function saveHomeSettings() {
-  const settings = {
-    heroImage: document.getElementById('hero-image-url').value.trim(),
-    heroVideo: document.getElementById('hero-video-url').value.trim()
-  };
-  if ([settings.heroImage, settings.heroVideo].some(v => v && !/^(https?:\/\/|assets\/)/i.test(v))) {
-    showAdminToast('الروابط يجب أن تبدأ بـ https://', 'error');
-    return;
+function startTask(title) {
+  let panel = document.getElementById('task-panel');
+  if (!panel) {
+    panel = document.createElement('div');
+    panel.id = 'task-panel';
+    panel.className = 'task-panel';
+    document.body.appendChild(panel);
   }
 
-  showAdminToast('جاري حفظ الواجهة...', 'info');
-  driveRequest({ action: 'saveSettings', settings })
+  const el = document.createElement('div');
+  el.className = 'task-item';
+  el.innerHTML = `
+    <div class="flex items-center gap-2.5">
+      <span class="task-icon"><i class="fa-solid fa-spinner fa-spin"></i></span>
+      <div class="flex-1 min-w-0">
+        <div class="task-title"></div>
+        <div class="task-detail"></div>
+      </div>
+      <span class="task-time">0 ث</span>
+    </div>
+    <div class="task-bar is-indeterminate"><span></span></div>`;
+  el.querySelector('.task-title').textContent = title;
+  panel.prepend(el);
+
+  const started = Date.now();
+  const seconds = () => Math.max(1, Math.round((Date.now() - started) / 1000));
+  const bar = el.querySelector('.task-bar');
+  const timeEl = el.querySelector('.task-time');
+  const tick = setInterval(() => { timeEl.textContent = `${seconds()} ث`; }, 500);
+
+  const finish = (state, message) => {
+    clearInterval(tick);
+    el.classList.add(`is-${state}`);
+    el.querySelector('.task-icon').innerHTML = state === 'done'
+      ? '<i class="fa-solid fa-circle-check"></i>'
+      : '<i class="fa-solid fa-circle-exclamation"></i>';
+    el.querySelector('.task-detail').textContent = message;
+    timeEl.textContent = `${seconds()} ث`;
+    bar.classList.remove('is-indeterminate');
+    bar.firstElementChild.style.width = '100%';
+    setTimeout(() => el.remove(), state === 'done' ? 5000 : 12000);
+  };
+
+  return {
+    // fraction 0..1 draws the bar; null shows a moving bar when the length is unknown
+    update(detail, fraction = null) {
+      el.querySelector('.task-detail').textContent = detail || '';
+      bar.classList.toggle('is-indeterminate', fraction === null);
+      if (fraction !== null) bar.firstElementChild.style.width = `${Math.round(Math.min(1, fraction) * 100)}%`;
+    },
+    done(message) { finish('done', message || 'تم ✓'); },
+    fail(message) { finish('error', message || 'حدث خطأ'); }
+  };
+}
+
+// Disables a button and shows a spinner on it while its request runs
+function setButtonBusy(button, busy, label = 'جاري الحفظ...') {
+  if (!button) return;
+  if (busy) {
+    button.dataset.idleHtml = button.innerHTML;
+    button.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i><span>${label}</span>`;
+    button.disabled = true;
+  } else if (button.dataset.idleHtml !== undefined) {
+    button.innerHTML = button.dataset.idleHtml;
+    delete button.dataset.idleHtml;
+    button.disabled = false;
+  }
+}
+
+function backendMessage(res) {
+  if (res && res.message === 'Unknown action') return 'هذه الميزة تحتاج تحديث كود Google Apps Script أولاً.';
+  return (res && res.message) || 'خطأ غير معروف';
+}
+
+// Sends one change to Google Drive with progress shown; resolves the response, or null on failure
+function saveWithProgress(title, payload, { button, doneMessage, busyLabel } = {}) {
+  const task = startTask(title);
+  task.update('جاري الإرسال إلى Google Drive...');
+  setButtonBusy(button, true, busyLabel);
+  return driveRequest(payload)
     .then(res => {
-      if (res.status === 'success') {
+      if (res && res.status === 'success') {
+        task.done(doneMessage || 'تم الحفظ ✓');
         markStoreChanged();
-        showAdminToast('تم حفظ صورة / فيديو الصفحة الرئيسية ✨ يظهر في المتجر خلال دقائق.', 'success');
-      } else {
-        const msg = res.message === 'Unknown action' ? 'تحتاج تحديث كود Google Apps Script أولاً.' : res.message || 'خطأ';
-        showAdminToast(`لم تُحفظ الواجهة: ${msg}`, 'error');
+        return res;
       }
+      task.fail(backendMessage(res));
+      return null;
     })
-    .catch(() => showAdminToast('تعذر الاتصال بـ Google Drive.', 'error'));
+    .catch(err => {
+      console.warn(title, err);
+      task.fail('تعذر الاتصال بـ Google Drive. تأكد من الإنترنت وحاول مرة أخرى.');
+      return null;
+    })
+    .finally(() => setButtonBusy(button, false));
+}
+
+// ========================================================
+// STORE SETTINGS (Settings sheet): ads, announcement bar, home banner,
+// WhatsApp number, social links, discounts and coupon codes — admins only
+// ========================================================
+function emptyDiscounts() {
+  return { store: { percent: 0, endsAt: '' }, categories: [], products: [] };
+}
+
+// Read once per visit, so switching tabs never wipes edits that weren't saved yet
+function loadStoreSettings(force = false) {
+  if (!ADMIN_STATE.settings.googleScriptUrl || !ADMIN_STATE.currentUser || ADMIN_STATE.currentUser.role !== 'admin') return Promise.resolve();
+  if (ADMIN_STATE.storeSettings && !force) return Promise.resolve();
+  return driveRequest({ action: 'getSettings' })
+    .then(res => {
+      if (res.status !== 'success') {
+        if (res.message === 'Unknown action') showAdminToast('الإعلانات والخصومات وواتساب تحتاج تحديث كود Google Apps Script أولاً.', 'error');
+        return;
+      }
+      applyStoreSettings(res.settings);
+    })
+    .catch(err => console.warn('Store settings fetch:', err));
+}
+
+function applyStoreSettings(settings) {
+  const s = settings || {};
+  ADMIN_STATE.storeSettings = s;
+  const set = (id, value) => { const el = document.getElementById(id); if (el) el.value = value || ''; };
+  set('hero-image-url', s.heroImage);
+  set('hero-video-url', s.heroVideo);
+  set('ann-ar', s.announcementAr);
+  set('ann-en', s.announcementEn);
+  set('store-whatsapp', s.whatsappNumber);
+  set('store-instagram', s.instagramUrl);
+  set('store-facebook', s.facebookUrl);
+  set('store-tiktok', s.tiktokUrl);
+
+  ADMIN_STATE.adSlides = (s.adSlides || []).map(a => ({ src: a.src, link: a.link || '' }));
+  const d = s.discounts || emptyDiscounts();
+  ADMIN_STATE.discounts = {
+    store: { percent: Number(d.store?.percent) || 0, endsAt: d.store?.endsAt || '' },
+    categories: (d.categories || []).map(r => ({ ...r })),
+    products: (d.products || []).map(r => ({ ...r })),
+    coupons: (s.coupons || []).map(c => ({ ...c }))
+  };
+  renderAdsList();
+  renderDiscountsEditor();
+  updateStatCards();
+  renderProductsTable();
+}
+
+// Which settings each "save" button sends
+function collectSettings(section) {
+  const val = id => (document.getElementById(id)?.value || '').trim();
+  if (section === 'hero') return { heroImage: val('hero-image-url'), heroVideo: val('hero-video-url') };
+  if (section === 'announcement') return { announcementAr: val('ann-ar'), announcementEn: val('ann-en') };
+  if (section === 'ads') return { adSlides: ADMIN_STATE.adSlides };
+  if (section === 'contact') {
+    return {
+      whatsappNumber: val('store-whatsapp').replace(/\D/g, ''),
+      instagramUrl: val('store-instagram'),
+      facebookUrl: val('store-facebook'),
+      tiktokUrl: val('store-tiktok')
+    };
+  }
+  if (section === 'discounts') {
+    const { coupons, ...discounts } = ADMIN_STATE.discounts;
+    return { discounts, coupons };
+  }
+  return {};
+}
+
+function validateSettings(section, settings) {
+  const badLink = v => v && !/^(https?:\/\/|assets\/)/i.test(v);
+  if (section === 'hero' && [settings.heroImage, settings.heroVideo].some(badLink)) return 'الروابط يجب أن تبدأ بـ https://';
+  if (section === 'contact') {
+    if (settings.whatsappNumber && (settings.whatsappNumber.length < 8 || settings.whatsappNumber.length > 15)) {
+      return 'رقم واتساب غير صحيح. اكتبه بكود الدولة مثل 201012345678.';
+    }
+    if (settings.whatsappNumber.startsWith('0')) return 'ابدأ الرقم بكود الدولة (مثلاً 20 لمصر) بدلاً من 0.';
+    if ([settings.instagramUrl, settings.facebookUrl, settings.tiktokUrl].some(badLink)) return 'روابط السوشيال يجب أن تبدأ بـ https://';
+  }
+  if (section === 'discounts') {
+    const codes = settings.coupons.map(c => String(c.code || '').trim().toUpperCase());
+    if (codes.some(c => !/^[A-Z0-9_-]{3,20}$/.test(c))) return 'كل كود يجب أن يكون 3-20 حرفاً إنجليزياً أو رقماً بدون مسافات.';
+    if (new Set(codes).size !== codes.length) return 'يوجد كود مكرر.';
+    const rules = [settings.discounts.store, ...settings.discounts.categories, ...settings.discounts.products, ...settings.coupons];
+    if (rules.some(r => Number(r.percent) && (Number(r.percent) < 1 || Number(r.percent) > 90))) return 'نسبة الخصم يجب أن تكون بين 1% و 90%.';
+    if ([...settings.discounts.categories, ...settings.discounts.products].some(r => !r.id)) return 'اختر القسم أو المنتج لكل خصم.';
+  }
+  return '';
+}
+
+const SETTINGS_TITLES = {
+  hero: 'حفظ بانر الصفحة الرئيسية',
+  announcement: 'حفظ شريط الإعلان',
+  ads: 'حفظ إعلانات الصفحة الرئيسية',
+  contact: 'حفظ واتساب وروابط المتجر',
+  discounts: 'حفظ الخصومات والأكواد'
+};
+
+function saveStoreSettings(section, button) {
+  const settings = collectSettings(section);
+  const problem = validateSettings(section, settings);
+  if (problem) {
+    showAdminToast(problem, 'error');
+    return;
+  }
+  saveWithProgress(SETTINGS_TITLES[section], { action: 'saveSettings', settings }, {
+    button,
+    doneMessage: 'تم الحفظ ✓ يظهر في الموقع خلال دقائق'
+  }).then(res => {
+    if (res && res.settings) applyStoreSettings(res.settings);
+  });
+}
+
+function testWhatsAppNumber(link) {
+  const digits = (document.getElementById('store-whatsapp').value || '').replace(/\D/g, '');
+  if (digits.length < 8) {
+    showAdminToast('اكتب الرقم أولاً.', 'error');
+    return false;
+  }
+  link.href = `https://wa.me/${digits}`;
+  return true;
+}
+
+// Pages the owner can pick for "opens when tapped" (categories and products)
+function populateStorePagesList() {
+  const list = document.getElementById('store-pages');
+  if (!list) return;
+  const opt = (value, label) => `<option value="${escapeHtml(value)}">${escapeHtml(label)}</option>`;
+  list.innerHTML = [
+    opt('shop.html', 'كل المنتجات'),
+    opt('giveaways.html', 'صانع التوزيعات'),
+    ...ADMIN_STATE.categories.map(c => opt(`shop.html?cat=${c.id}`, `قسم: ${c.nameAr}`)),
+    ...ADMIN_STATE.products.map(p => opt(`product.html?id=${p.id}`, `منتج: ${p.nameAr}`))
+  ].join('');
+}
+
+// ---- Ads slider list ----
+function isVideoLink(url) {
+  return videoLinkLabel(url) !== 'رابط' || /\.(mp4|webm|mov)(\?|$)/i.test(url);
+}
+
+function renderAdsList() {
+  const el = document.getElementById('ads-list');
+  if (!el) return;
+  populateStorePagesList();
+  const ads = ADMIN_STATE.adSlides || [];
+  if (!ads.length) {
+    el.innerHTML = '<div class="text-xs text-stone-400 text-center py-6 border border-dashed border-stone-200 dark:border-stone-700 rounded-xl">لا توجد إعلانات بعد. ارفع صورة أو فيديو، أو الصق رابط.</div>';
+    return;
+  }
+  el.innerHTML = ads.map((ad, i) => {
+    const video = isVideoLink(ad.src);
+    return `
+      <div class="flex flex-col sm:flex-row sm:items-center gap-3 p-3 rounded-xl bg-stone-50 dark:bg-stone-800/60">
+        <div class="flex items-center gap-3 flex-1 min-w-0">
+          <span class="text-xs font-black text-stone-400 w-4">${i + 1}</span>
+          ${video
+            ? '<div class="w-20 h-12 rounded-lg bg-stone-900 text-white flex items-center justify-center flex-shrink-0"><i class="fa-solid fa-circle-play text-pink-400"></i></div>'
+            : `<img src="${escapeHtml(ad.src)}" alt="" class="w-20 h-12 rounded-lg object-cover bg-stone-200 flex-shrink-0">`}
+          <div class="min-w-0 flex-1">
+            <div class="text-[11px] font-bold">${video ? `فيديو · ${escapeHtml(videoLinkLabel(ad.src))}` : 'صورة'}</div>
+            <a href="${escapeHtml(ad.src)}" target="_blank" rel="noopener" dir="ltr" class="block truncate text-[11px] text-stone-500 hover:text-pink-600">${escapeHtml(ad.src)}</a>
+          </div>
+        </div>
+        <input type="text" list="store-pages" value="${escapeHtml(ad.link)}" placeholder="يفتح عند الضغط (اختياري)" dir="ltr"
+          onchange="updateAdLink(${i}, this.value)"
+          class="sm:w-64 px-3 py-2 rounded-lg border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-900 text-[11px] focus:ring-2 focus:ring-pink-500 focus:outline-none">
+        <div class="flex items-center gap-1.5 justify-end">
+          <button type="button" onclick="moveAd(${i}, -1)" ${i === 0 ? 'disabled' : ''} title="لأعلى" class="w-8 h-8 rounded-lg bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-700 text-[10px] disabled:opacity-30"><i class="fa-solid fa-chevron-up"></i></button>
+          <button type="button" onclick="moveAd(${i}, 1)" ${i === ads.length - 1 ? 'disabled' : ''} title="لأسفل" class="w-8 h-8 rounded-lg bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-700 text-[10px] disabled:opacity-30"><i class="fa-solid fa-chevron-down"></i></button>
+          <button type="button" onclick="removeAd(${i})" title="حذف" class="w-8 h-8 rounded-lg bg-red-50 hover:bg-red-100 text-red-600 text-xs"><i class="fa-solid fa-trash-can"></i></button>
+        </div>
+      </div>`;
+  }).join('');
+}
+
+function addAd(src) {
+  ADMIN_STATE.adSlides = ADMIN_STATE.adSlides || [];
+  if (ADMIN_STATE.adSlides.length >= 10) {
+    showAdminToast('الحد الأقصى 10 إعلانات.', 'error');
+    return false;
+  }
+  ADMIN_STATE.adSlides.push({ src, link: '' });
+  renderAdsList();
+  return true;
+}
+
+function addAdFromLink() {
+  const input = document.getElementById('ads-new-link');
+  const url = input.value.trim();
+  if (!/^https?:\/\//i.test(url)) {
+    showAdminToast('الصق رابطاً كاملاً يبدأ بـ https://', 'error');
+    return;
+  }
+  if (addAd(url)) input.value = '';
+}
+
+function uploadIntoAds(event) {
+  const input = event.target;
+  const files = [...input.files];
+  input.value = '';
+  if (files.length) uploadFilesWithProgress(input, files, url => addAd(url));
+}
+
+function updateAdLink(index, value) {
+  if (ADMIN_STATE.adSlides[index]) ADMIN_STATE.adSlides[index].link = value.trim();
+}
+
+function moveAd(index, delta) {
+  const ads = ADMIN_STATE.adSlides;
+  const to = index + delta;
+  if (to < 0 || to >= ads.length) return;
+  [ads[index], ads[to]] = [ads[to], ads[index]];
+  renderAdsList();
+}
+
+function removeAd(index) {
+  ADMIN_STATE.adSlides.splice(index, 1);
+  renderAdsList();
+}
+
+// ---- Discounts editor ----
+function todayString() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+function ruleStatusBadge(rule) {
+  if (!Number(rule.percent)) return '<span class="text-[11px] text-stone-400">بدون خصم</span>';
+  if (rule.endsAt && rule.endsAt < todayString()) return '<span class="text-[11px] font-bold text-stone-500 bg-stone-100 dark:bg-stone-800 px-2 py-0.5 rounded-full">منتهي</span>';
+  if (rule.active === false) return '<span class="text-[11px] font-bold text-stone-500 bg-stone-100 dark:bg-stone-800 px-2 py-0.5 rounded-full">متوقف</span>';
+  return '<span class="text-[11px] font-bold text-emerald-700 bg-emerald-50 dark:bg-emerald-950/40 px-2 py-0.5 rounded-full">فعّال</span>';
+}
+
+function renderDiscountsEditor() {
+  const d = ADMIN_STATE.discounts;
+  if (!d || !document.getElementById('disc-store-percent')) return;
+  document.getElementById('disc-store-percent').value = d.store.percent || '';
+  document.getElementById('disc-store-ends').value = d.store.endsAt || '';
+  document.getElementById('disc-store-status').innerHTML = ruleStatusBadge(d.store);
+
+  const input = 'px-3 py-2 rounded-lg border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-900 text-xs focus:ring-2 focus:ring-pink-500 focus:outline-none';
+  const removeBtn = onclick => `<button type="button" onclick="${onclick}" title="حذف" class="w-8 h-8 rounded-lg bg-red-50 hover:bg-red-100 text-red-600 text-xs flex-shrink-0"><i class="fa-solid fa-trash-can"></i></button>`;
+  const empty = text => `<div class="text-xs text-stone-400 text-center py-4">${text}</div>`;
+  const percentAndDate = (kind, r, i) => `
+    <div class="flex items-center gap-1"><input type="number" min="1" max="90" value="${Number(r.percent) || ''}" placeholder="%" oninput="updateDiscountRule('${kind}', ${i}, 'percent', this.value)" class="${input} w-20"><span class="text-xs font-bold">%</span></div>
+    <input type="date" value="${escapeHtml(r.endsAt || '')}" title="ينتهي يوم (اختياري)" oninput="updateDiscountRule('${kind}', ${i}, 'endsAt', this.value)" class="${input}">
+    <span class="w-14">${ruleStatusBadge(r)}</span>`;
+
+  const options = (list, selected, label) => `<option value="">— اختر —</option>` + list.map(x =>
+    `<option value="${escapeHtml(x.id)}" ${x.id === selected ? 'selected' : ''}>${escapeHtml(label(x))}</option>`).join('');
+
+  document.getElementById('disc-categories-list').innerHTML = d.categories.map((r, i) => `
+    <div class="flex flex-wrap items-center gap-2">
+      <select onchange="updateDiscountRule('categories', ${i}, 'id', this.value)" class="${input} flex-1 min-w-[10rem]">${options(ADMIN_STATE.categories, r.id, c => c.nameAr)}</select>
+      ${percentAndDate('categories', r, i)}
+      ${removeBtn(`removeDiscountRule('categories', ${i})`)}
+    </div>`).join('') || empty('لا يوجد خصم على أقسام.');
+
+  document.getElementById('disc-products-list').innerHTML = d.products.map((r, i) => `
+    <div class="flex flex-wrap items-center gap-2">
+      <select onchange="updateDiscountRule('products', ${i}, 'id', this.value)" class="${input} flex-1 min-w-[12rem]">${options(ADMIN_STATE.products, r.id, p => `${p.nameAr} (${p.price} ج.م)`)}</select>
+      ${percentAndDate('products', r, i)}
+      ${removeBtn(`removeDiscountRule('products', ${i})`)}
+    </div>`).join('') || empty('لا يوجد خصم على منتجات.');
+
+  document.getElementById('disc-coupons-list').innerHTML = d.coupons.map((c, i) => `
+    <div class="flex flex-wrap items-center gap-2">
+      <input type="text" value="${escapeHtml(c.code)}" placeholder="EID25" dir="ltr" maxlength="20" oninput="updateDiscountRule('coupons', ${i}, 'code', this.value.toUpperCase().replace(/\\s+/g, ''))" class="${input} w-36 font-mono uppercase">
+      ${percentAndDate('coupons', c, i)}
+      <label class="flex items-center gap-1.5 text-xs font-bold cursor-pointer">
+        <input type="checkbox" ${c.active !== false ? 'checked' : ''} onchange="updateDiscountRule('coupons', ${i}, 'active', this.checked)" class="rounded text-pink-600 w-4 h-4">
+        <span>شغّال</span>
+      </label>
+      ${removeBtn(`removeDiscountRule('coupons', ${i})`)}
+    </div>`).join('') || empty('لا توجد أكواد. العملاء لن يستطيعوا استخدام أي كود.');
+}
+
+function updateStoreDiscount() {
+  const d = ADMIN_STATE.discounts;
+  d.store.percent = Number(document.getElementById('disc-store-percent').value) || 0;
+  d.store.endsAt = document.getElementById('disc-store-ends').value || '';
+  document.getElementById('disc-store-status').innerHTML = ruleStatusBadge(d.store);
+}
+
+// Typing doesn't redraw the rows (so the cursor stays); picking or switching does
+function updateDiscountRule(kind, index, field, value) {
+  const rule = ADMIN_STATE.discounts[kind][index];
+  if (!rule) return;
+  rule[field] = field === 'percent' ? Number(value) || 0 : value;
+  if (field !== 'code' && field !== 'percent') renderDiscountsEditor();
+}
+
+function addDiscountRule(kind) {
+  if (!ADMIN_STATE.discounts) return showAdminToast('جاري تحميل الإعدادات من Google Drive...', 'info');
+  ADMIN_STATE.discounts[kind].push({ id: '', percent: 10, endsAt: '' });
+  renderDiscountsEditor();
+}
+
+function addCoupon() {
+  if (!ADMIN_STATE.discounts) return showAdminToast('جاري تحميل الإعدادات من Google Drive...', 'info');
+  ADMIN_STATE.discounts.coupons.push({ code: '', percent: 10, endsAt: '', active: true });
+  renderDiscountsEditor();
+}
+
+function removeDiscountRule(kind, index) {
+  ADMIN_STATE.discounts[kind].splice(index, 1);
+  renderDiscountsEditor();
+}
+
+// Same rule as the store: the biggest discount that still applies (used in the products table)
+function productDiscountPercent(prod) {
+  const s = ADMIN_STATE.storeSettings;
+  const d = s && s.discounts;
+  if (!d) return 0;
+  const today = todayString();
+  const rules = [d.store, ...(d.categories || []).filter(r => r.id === prod.categoryId), ...(d.products || []).filter(r => r.id === prod.id)]
+    .filter(r => r && Number(r.percent) > 0 && (!r.endsAt || r.endsAt >= today));
+  return rules.length ? Math.max(...rules.map(r => Number(r.percent))) : 0;
 }
 
 // ========================================================

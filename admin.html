@@ -25,7 +25,7 @@
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
 
   <!-- Custom Admin Styles -->
-  <link rel="stylesheet" href="admin.css?v=20261101f">
+  <link rel="stylesheet" href="admin.css?v=20261101g">
 </head>
 <body class="bg-[#f8f6f4] dark:bg-[#141213] text-[#2b2325] dark:text-[#f7f2f3]">
 
@@ -145,8 +145,9 @@
           </div>
         </div>
 
-        <!-- Navigation Tabs -->
+        <!-- Navigation Tabs (grouped: store, appearance, settings) -->
         <nav class="space-y-1.5">
+          <span class="admin-nav-label">المتجر</span>
           <div onclick="switchTab('overview')" id="tab-btn-overview" class="admin-nav-item active">
             <i class="fa-solid fa-chart-pie text-sm w-5"></i>
             <span>نظرة عامة</span>
@@ -154,22 +155,39 @@
 
           <div onclick="switchTab('products')" id="tab-btn-products" class="admin-nav-item">
             <i class="fa-solid fa-box-open text-sm w-5"></i>
-            <span>إدارة المنتجات</span>
+            <span>المنتجات</span>
           </div>
 
           <div onclick="switchTab('categories')" id="tab-btn-categories" class="admin-nav-item hidden">
             <i class="fa-solid fa-tags text-sm w-5"></i>
-            <span>الأقسام والواجهة</span>
+            <span>الأقسام</span>
+          </div>
+
+          <div onclick="switchTab('discounts')" id="tab-btn-discounts" class="admin-nav-item hidden">
+            <i class="fa-solid fa-percent text-sm w-5"></i>
+            <span>الخصومات والأكواد</span>
+          </div>
+
+          <span class="admin-nav-label admin-only hidden">الواجهة</span>
+          <div onclick="switchTab('appearance')" id="tab-btn-appearance" class="admin-nav-item hidden">
+            <i class="fa-solid fa-photo-film text-sm w-5"></i>
+            <span>الإعلانات والواجهة</span>
+          </div>
+
+          <span class="admin-nav-label">الإعدادات</span>
+          <div onclick="switchTab('store')" id="tab-btn-store" class="admin-nav-item hidden">
+            <i class="fa-brands fa-whatsapp text-sm w-5"></i>
+            <span>واتساب وروابط المتجر</span>
           </div>
 
           <div onclick="switchTab('users')" id="tab-btn-users" class="admin-nav-item">
             <i class="fa-solid fa-users-gear text-sm w-5"></i>
-            <span>إدارة المستخدمين</span>
+            <span>المستخدمين</span>
           </div>
 
           <div onclick="switchTab('sync')" id="tab-btn-sync" class="admin-nav-item">
-            <i class="fa-solid fa-cloud-arrow-up text-sm w-5"></i>
-            <span>Google Drive & GitHub</span>
+            <i class="fa-solid fa-gears text-sm w-5"></i>
+            <span>متقدم: Drive و GitHub</span>
           </div>
         </nav>
       </div>
@@ -220,12 +238,6 @@
             <span id="sync-status-text">جاهز للمزامنة</span>
           </div>
 
-          <!-- Direct GitHub Push Button -->
-          <button onclick="publishToGitHub()" class="h-9 px-4 rounded-xl bg-gradient-to-r from-stone-900 to-black text-white hover:from-pink-700 hover:to-rose-800 text-xs font-bold flex items-center gap-2 shadow-sm transition-all">
-            <i class="fa-brands fa-github text-sm"></i>
-            <span>نشر على GitHub</span>
-          </button>
-
           <!-- Theme Toggle -->
           <button onclick="toggleAdminTheme()" class="w-9 h-9 rounded-xl border border-stone-200 dark:border-stone-700 flex items-center justify-center text-stone-600 dark:text-stone-300 hover:bg-stone-100 dark:hover:bg-stone-800">
             <i id="admin-theme-icon" class="fa-solid fa-moon text-xs"></i>
@@ -271,13 +283,13 @@
               </div>
             </div>
 
-            <div class="admin-card p-5 flex items-center justify-between">
-              <div>
-                <span class="text-xs font-bold text-stone-500 block mb-1">مستودع GitHub</span>
-                <span class="text-sm font-black text-emerald-600">nouriistore/nouriistore.github.io</span>
+            <div onclick="switchTab('store')" class="admin-card p-5 flex items-center justify-between cursor-pointer hover:border-pink-300">
+              <div class="min-w-0">
+                <span class="text-xs font-bold text-stone-500 block mb-1">واتساب استقبال الطلبات</span>
+                <span id="stat-whatsapp" class="text-sm font-black text-emerald-600 block truncate" dir="ltr">...</span>
               </div>
-              <div class="w-12 h-12 rounded-2xl bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 flex items-center justify-center text-xl">
-                <i class="fa-brands fa-github"></i>
+              <div class="w-12 h-12 rounded-2xl bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 flex items-center justify-center text-xl flex-shrink-0">
+                <i class="fa-brands fa-whatsapp"></i>
               </div>
             </div>
 
@@ -296,27 +308,27 @@
                 </div>
                 <div>
                   <span class="font-bold text-xs block">إضافة منتج جديد</span>
-                  <span class="text-[11px] text-stone-500">أضف منتج وسعر وصور جديدة</span>
+                  <span class="text-[11px] text-stone-500">صور وفيديو وسعر</span>
                 </div>
               </button>
 
-              <button onclick="openAddUserModal()" class="p-4 rounded-xl border border-stone-200 dark:border-stone-800 hover:border-blue-300 dark:hover:border-blue-800 hover:bg-blue-50/50 dark:hover:bg-stone-800 flex items-center gap-3 text-start transition-all">
+              <button onclick="switchTab('discounts')" class="admin-only hidden p-4 rounded-xl border border-stone-200 dark:border-stone-800 hover:border-amber-300 dark:hover:border-amber-800 hover:bg-amber-50/50 dark:hover:bg-stone-800 flex items-center gap-3 text-start transition-all">
+                <div class="w-10 h-10 rounded-lg bg-amber-100 text-amber-600 flex items-center justify-center font-bold">
+                  <i class="fa-solid fa-percent"></i>
+                </div>
+                <div>
+                  <span class="font-bold text-xs block">عمل خصم</span>
+                  <span class="text-[11px] text-stone-500">على المتجر أو قسم أو منتج، أو كود</span>
+                </div>
+              </button>
+
+              <button onclick="switchTab('appearance')" class="admin-only hidden p-4 rounded-xl border border-stone-200 dark:border-stone-800 hover:border-blue-300 dark:hover:border-blue-800 hover:bg-blue-50/50 dark:hover:bg-stone-800 flex items-center gap-3 text-start transition-all">
                 <div class="w-10 h-10 rounded-lg bg-blue-100 text-blue-600 flex items-center justify-center font-bold">
-                  <i class="fa-solid fa-user-plus"></i>
+                  <i class="fa-solid fa-photo-film"></i>
                 </div>
                 <div>
-                  <span class="font-bold text-xs block">إضافة مستخدم جديد</span>
-                  <span class="text-[11px] text-stone-500">إضافة مشرف أو محرر للوحة</span>
-                </div>
-              </button>
-
-              <button onclick="switchTab('sync')" class="p-4 rounded-xl border border-stone-200 dark:border-stone-800 hover:border-emerald-300 dark:hover:border-emerald-800 hover:bg-emerald-50/50 dark:hover:bg-stone-800 flex items-center gap-3 text-start transition-all">
-                <div class="w-10 h-10 rounded-lg bg-emerald-100 text-emerald-600 flex items-center justify-center font-bold">
-                  <i class="fa-solid fa-rotate"></i>
-                </div>
-                <div>
-                  <span class="font-bold text-xs block">إعدادات المزامنة</span>
-                  <span class="text-[11px] text-stone-500">Google Drive & GitHub Sync</span>
+                  <span class="font-bold text-xs block">إعلانات الصفحة الرئيسية</span>
+                  <span class="text-[11px] text-stone-500">فيديوهات وصور أعلى الموقع</span>
                 </div>
               </button>
             </div>
@@ -342,11 +354,6 @@
             </div>
 
             <div class="flex items-center gap-2">
-              <button onclick="pushToGoogleDrive()" class="py-2.5 px-4 rounded-xl border border-stone-300 dark:border-stone-700 hover:bg-stone-100 dark:hover:bg-stone-800 text-stone-700 dark:text-stone-200 font-bold text-xs flex items-center justify-center gap-2 shadow-sm transition-all" title="مزامنة وتصدير جميع المنتجات إلى Google Sheet">
-                <i class="fa-solid fa-cloud-arrow-up text-amber-500"></i>
-                <span>مزامنة المنتجات مع Google Sheet</span>
-              </button>
-
               <!-- Add Product Button -->
               <button onclick="openAddProductModal()" class="py-2.5 px-5 rounded-xl bg-pink-600 hover:bg-pink-700 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-sm transition-all">
                 <i class="fa-solid fa-plus"></i>
@@ -378,8 +385,105 @@
           </div>
         </div>
 
-        <!-- ================= TAB: CATEGORIES & HOME PAGE ================= -->
+        <!-- ================= TAB: CATEGORIES ================= -->
         <div id="tab-categories" class="hidden space-y-6">
+          <!-- Categories -->
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div>
+              <h3 class="font-bold text-base">أقسام المتجر</h3>
+              <p class="text-xs text-stone-500">أي قسم تضيفه يظهر تلقائياً في قائمة الموقع والصفحة الرئيسية وصفحة المنتجات. استخدم الأسهم لتغيير الترتيب.</p>
+            </div>
+            <button onclick="openCategoryModal()" class="py-2.5 px-5 rounded-xl bg-pink-600 hover:bg-pink-700 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-sm transition-all whitespace-nowrap">
+              <i class="fa-solid fa-plus"></i>
+              <span>إضافة قسم جديد</span>
+            </button>
+          </div>
+
+          <div class="admin-card overflow-hidden">
+            <div class="overflow-x-auto">
+              <table class="admin-table">
+                <thead>
+                  <tr>
+                    <th>الترتيب</th>
+                    <th>الصورة</th>
+                    <th>اسم القسم</th>
+                    <th>المنتجات</th>
+                    <th>فيديو</th>
+                    <th>الحالة</th>
+                    <th class="text-center">الإجراءات</th>
+                  </tr>
+                </thead>
+                <tbody id="admin-categories-table-body">
+                  <!-- Populated by JS -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <!-- ================= TAB: ADS & APPEARANCE ================= -->
+        <div id="tab-appearance" class="hidden space-y-6">
+          <!-- Ads slider -->
+          <div class="admin-card p-6">
+            <div class="flex flex-col sm:flex-row sm:items-start justify-between gap-3 mb-4">
+              <div>
+                <h3 class="font-bold text-base flex items-center gap-2">
+                  <i class="fa-solid fa-film text-pink-600"></i>
+                  <span>إعلانات أعلى الصفحة الرئيسية</span>
+                </h3>
+                <p class="text-xs text-stone-500 mt-1">شريط يعرض فيديوهات وصور الإعلانات بالتتابع أعلى الصفحة الرئيسية (حتى 10). الصور تتغير كل 5 ثوانٍ والفيديو كل 20 ثانية. اختر لكل إعلان الصفحة التي يفتحها عند الضغط.</p>
+              </div>
+              <div class="flex gap-2 flex-shrink-0">
+                <label class="media-upload-btn" title="رفع صورة إعلان">
+                  <i class="fa-solid fa-image text-pink-600"></i><span>رفع صورة</span>
+                  <input type="file" accept="image/*" multiple class="hidden" onchange="uploadIntoAds(event)">
+                </label>
+                <label class="media-upload-btn" title="رفع فيديو إعلان (حتى 25 ميجا)">
+                  <i class="fa-solid fa-video text-pink-600"></i><span>رفع فيديو</span>
+                  <input type="file" accept="video/mp4,video/webm,video/quicktime" class="hidden" onchange="uploadIntoAds(event)">
+                </label>
+              </div>
+            </div>
+
+            <div id="ads-list" class="space-y-2"></div>
+
+            <div class="flex gap-2 mt-3">
+              <input type="url" id="ads-new-link" placeholder="أو الصق رابط فيديو (يوتيوب / انستجرام / تيك توك / فيسبوك) أو رابط صورة"
+                class="flex-1 min-w-0 px-3.5 py-2.5 rounded-xl border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-900 text-xs focus:ring-2 focus:ring-pink-500 focus:outline-none">
+              <button type="button" onclick="addAdFromLink()" class="px-4 rounded-xl bg-stone-100 dark:bg-stone-800 hover:bg-stone-200 text-xs font-bold">إضافة</button>
+            </div>
+
+            <button onclick="saveStoreSettings('ads', this)" class="mt-5 py-2.5 px-6 rounded-xl bg-pink-600 hover:bg-pink-700 text-white font-bold text-xs flex items-center gap-2">
+              <i class="fa-solid fa-floppy-disk"></i>
+              <span>حفظ الإعلانات</span>
+            </button>
+          </div>
+
+          <!-- Announcement bar -->
+          <div class="admin-card p-6">
+            <h3 class="font-bold text-base mb-1 flex items-center gap-2">
+              <i class="fa-solid fa-bullhorn text-pink-600"></i>
+              <span>شريط الإعلان أعلى كل الصفحات</span>
+            </h3>
+            <p class="text-xs text-stone-500 mb-4">الشريط الوردي الصغير أعلى الموقع. اتركه فارغاً لعرض النص الحالي (خصم 10% بكود NOURII10 وشحن لجميع المحافظات).</p>
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              <div>
+                <label class="block text-xs font-bold mb-1">النص بالعربية</label>
+                <input type="text" id="ann-ar" maxlength="200" placeholder="مثال: ✨ خصم 20% على كل التوزيعات حتى نهاية الشهر"
+                  class="w-full px-3.5 py-2.5 rounded-xl border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-900 text-xs focus:ring-2 focus:ring-pink-500 focus:outline-none">
+              </div>
+              <div>
+                <label class="block text-xs font-bold mb-1">النص بالإنجليزية</label>
+                <input type="text" id="ann-en" maxlength="200" dir="ltr" placeholder="e.g. ✨ 20% off all favors this month"
+                  class="w-full px-3.5 py-2.5 rounded-xl border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-900 text-xs focus:ring-2 focus:ring-pink-500 focus:outline-none">
+              </div>
+            </div>
+            <button onclick="saveStoreSettings('announcement', this)" class="mt-5 py-2.5 px-6 rounded-xl bg-pink-600 hover:bg-pink-700 text-white font-bold text-xs flex items-center gap-2">
+              <i class="fa-solid fa-floppy-disk"></i>
+              <span>حفظ الشريط</span>
+            </button>
+          </div>
+
           <!-- Home page banner -->
           <div class="admin-card p-6">
             <h3 class="font-bold text-base mb-1 flex items-center gap-2">
@@ -413,44 +517,140 @@
               </div>
             </div>
 
-            <button onclick="saveHomeSettings()" class="mt-5 py-2.5 px-6 rounded-xl bg-pink-600 hover:bg-pink-700 text-white font-bold text-xs flex items-center gap-2">
+            <button onclick="saveStoreSettings('hero', this)" class="mt-5 py-2.5 px-6 rounded-xl bg-pink-600 hover:bg-pink-700 text-white font-bold text-xs flex items-center gap-2">
               <i class="fa-solid fa-floppy-disk"></i>
-              <span>حفظ الواجهة</span>
+              <span>حفظ البانر</span>
             </button>
           </div>
 
-          <!-- Categories -->
-          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-            <div>
-              <h3 class="font-bold text-base">أقسام المتجر</h3>
-              <p class="text-xs text-stone-500">أي قسم تضيفه يظهر تلقائياً في قائمة الموقع والصفحة الرئيسية وصفحة المنتجات. استخدم الأسهم لتغيير الترتيب.</p>
-            </div>
-            <button onclick="openCategoryModal()" class="py-2.5 px-5 rounded-xl bg-pink-600 hover:bg-pink-700 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-sm transition-all whitespace-nowrap">
-              <i class="fa-solid fa-plus"></i>
-              <span>إضافة قسم جديد</span>
-            </button>
+        </div>
+
+        <!-- ================= TAB: DISCOUNTS & COUPONS ================= -->
+        <div id="tab-discounts" class="hidden space-y-6">
+          <div class="admin-card p-4 text-xs text-stone-600 dark:text-stone-300 leading-relaxed flex gap-3">
+            <i class="fa-solid fa-circle-info text-pink-600 mt-0.5"></i>
+            <span>الخصم يظهر للعملاء كسعر جديد بجانبه السعر القديم مشطوب. لو المنتج عليه أكثر من خصم (مثلاً خصم على المتجر وخصم على قسمه) يُطبق الأكبر فقط. كود الخصم يكتبه العميل في السلة ويُخصم من الإجمالي. تاريخ الانتهاء اختياري: الخصم يعمل حتى نهاية ذلك اليوم.</span>
           </div>
 
-          <div class="admin-card overflow-hidden">
-            <div class="overflow-x-auto">
-              <table class="admin-table">
-                <thead>
-                  <tr>
-                    <th>الترتيب</th>
-                    <th>الصورة</th>
-                    <th>اسم القسم</th>
-                    <th>المنتجات</th>
-                    <th>فيديو</th>
-                    <th>الحالة</th>
-                    <th class="text-center">الإجراءات</th>
-                  </tr>
-                </thead>
-                <tbody id="admin-categories-table-body">
-                  <!-- Populated by JS -->
-                </tbody>
-              </table>
+          <!-- Whole store -->
+          <div class="admin-card p-6">
+            <h3 class="font-bold text-base mb-4 flex items-center gap-2">
+              <i class="fa-solid fa-store text-pink-600"></i>
+              <span>خصم على كل المتجر</span>
+            </h3>
+            <div class="flex flex-wrap items-end gap-4">
+              <div>
+                <label class="block text-xs font-bold mb-1">نسبة الخصم %</label>
+                <input type="number" id="disc-store-percent" min="0" max="90" step="1" placeholder="0 = بدون خصم" oninput="updateStoreDiscount()"
+                  class="w-36 px-3.5 py-2.5 rounded-xl border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-900 text-xs focus:ring-2 focus:ring-pink-500 focus:outline-none">
+              </div>
+              <div>
+                <label class="block text-xs font-bold mb-1">ينتهي يوم (اختياري)</label>
+                <input type="date" id="disc-store-ends" oninput="updateStoreDiscount()"
+                  class="px-3.5 py-2 rounded-xl border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-900 text-xs focus:ring-2 focus:ring-pink-500 focus:outline-none">
+              </div>
+              <span id="disc-store-status"></span>
             </div>
           </div>
+
+          <!-- Per category -->
+          <div class="admin-card p-6">
+            <div class="flex items-center justify-between mb-4">
+              <h3 class="font-bold text-base flex items-center gap-2">
+                <i class="fa-solid fa-tags text-pink-600"></i>
+                <span>خصم على قسم</span>
+              </h3>
+              <button type="button" onclick="addDiscountRule('categories')" class="py-2 px-4 rounded-xl bg-stone-100 dark:bg-stone-800 hover:bg-stone-200 text-xs font-bold flex items-center gap-1.5">
+                <i class="fa-solid fa-plus"></i><span>إضافة خصم لقسم</span>
+              </button>
+            </div>
+            <div id="disc-categories-list" class="space-y-2"></div>
+          </div>
+
+          <!-- Per product -->
+          <div class="admin-card p-6">
+            <div class="flex items-center justify-between mb-4">
+              <h3 class="font-bold text-base flex items-center gap-2">
+                <i class="fa-solid fa-box-open text-pink-600"></i>
+                <span>خصم على منتج</span>
+              </h3>
+              <button type="button" onclick="addDiscountRule('products')" class="py-2 px-4 rounded-xl bg-stone-100 dark:bg-stone-800 hover:bg-stone-200 text-xs font-bold flex items-center gap-1.5">
+                <i class="fa-solid fa-plus"></i><span>إضافة خصم لمنتج</span>
+              </button>
+            </div>
+            <div id="disc-products-list" class="space-y-2"></div>
+          </div>
+
+          <!-- Coupon codes -->
+          <div class="admin-card p-6">
+            <div class="flex items-center justify-between mb-1">
+              <h3 class="font-bold text-base flex items-center gap-2">
+                <i class="fa-solid fa-ticket text-pink-600"></i>
+                <span>أكواد الخصم</span>
+              </h3>
+              <button type="button" onclick="addCoupon()" class="py-2 px-4 rounded-xl bg-stone-100 dark:bg-stone-800 hover:bg-stone-200 text-xs font-bold flex items-center gap-1.5">
+                <i class="fa-solid fa-plus"></i><span>إضافة كود</span>
+              </button>
+            </div>
+            <p class="text-xs text-stone-500 mb-4">الكود بحروف إنجليزية وأرقام (3-20 حرف) مثل EID25. الأكواد لا تظهر لزوار الموقع، يتم التحقق منها عند الكتابة فقط.</p>
+            <div id="disc-coupons-list" class="space-y-2"></div>
+          </div>
+
+          <div class="sticky bottom-4 flex justify-end">
+            <button onclick="saveStoreSettings('discounts', this)" class="py-3 px-8 rounded-xl bg-pink-600 hover:bg-pink-700 text-white font-bold text-sm flex items-center gap-2 shadow-lg">
+              <i class="fa-solid fa-floppy-disk"></i>
+              <span>حفظ كل الخصومات</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- ================= TAB: WHATSAPP & STORE LINKS ================= -->
+        <div id="tab-store" class="hidden space-y-6">
+          <div class="admin-card p-6">
+            <h3 class="font-bold text-base mb-1 flex items-center gap-2">
+              <i class="fa-brands fa-whatsapp text-emerald-600"></i>
+              <span>رقم واتساب استقبال الطلبات</span>
+            </h3>
+            <p class="text-xs text-stone-500 mb-4">كل طلبات العملاء وزر واتساب في الموقع تذهب لهذا الرقم. اكتبه بكود الدولة بدون + أو مسافات، مثل 201012345678.</p>
+            <div class="flex flex-wrap items-center gap-3">
+              <input type="tel" id="store-whatsapp" dir="ltr" placeholder="201012345678"
+                class="w-60 px-3.5 py-2.5 rounded-xl border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-900 text-sm font-mono focus:ring-2 focus:ring-pink-500 focus:outline-none">
+              <a id="store-whatsapp-test" href="#" target="_blank" rel="noopener" onclick="return testWhatsAppNumber(this)"
+                class="py-2.5 px-4 rounded-xl border border-emerald-300 text-emerald-700 hover:bg-emerald-50 dark:hover:bg-stone-800 text-xs font-bold flex items-center gap-1.5">
+                <i class="fa-solid fa-arrow-up-right-from-square"></i><span>جرّب الرقم</span>
+              </a>
+            </div>
+          </div>
+
+          <div class="admin-card p-6">
+            <h3 class="font-bold text-base mb-1 flex items-center gap-2">
+              <i class="fa-solid fa-share-nodes text-pink-600"></i>
+              <span>روابط السوشيال ميديا</span>
+            </h3>
+            <p class="text-xs text-stone-500 mb-4">تظهر كأيقونات أسفل الموقع. الرابط الفارغ تختفي أيقونته.</p>
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+              <div>
+                <label class="block text-xs font-bold mb-1"><i class="fa-brands fa-instagram text-pink-600"></i> Instagram</label>
+                <input type="url" id="store-instagram" dir="ltr" placeholder="https://instagram.com/..."
+                  class="w-full px-3.5 py-2.5 rounded-xl border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-900 text-xs focus:ring-2 focus:ring-pink-500 focus:outline-none">
+              </div>
+              <div>
+                <label class="block text-xs font-bold mb-1"><i class="fa-brands fa-facebook text-blue-600"></i> Facebook</label>
+                <input type="url" id="store-facebook" dir="ltr" placeholder="https://facebook.com/..."
+                  class="w-full px-3.5 py-2.5 rounded-xl border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-900 text-xs focus:ring-2 focus:ring-pink-500 focus:outline-none">
+              </div>
+              <div>
+                <label class="block text-xs font-bold mb-1"><i class="fa-brands fa-tiktok"></i> TikTok</label>
+                <input type="url" id="store-tiktok" dir="ltr" placeholder="https://tiktok.com/@..."
+                  class="w-full px-3.5 py-2.5 rounded-xl border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-900 text-xs focus:ring-2 focus:ring-pink-500 focus:outline-none">
+              </div>
+            </div>
+          </div>
+
+          <button onclick="saveStoreSettings('contact', this)" class="py-3 px-8 rounded-xl bg-pink-600 hover:bg-pink-700 text-white font-bold text-sm flex items-center gap-2">
+            <i class="fa-solid fa-floppy-disk"></i>
+            <span>حفظ</span>
+          </button>
         </div>
 
         <!-- ================= TAB 3: USERS MANAGEMENT ================= -->
@@ -538,7 +738,7 @@
                 </button>
                 <button onclick="pushToGoogleDrive()" class="py-2.5 px-6 rounded-xl border border-stone-300 dark:border-stone-700 hover:bg-stone-100 dark:hover:bg-stone-800 text-xs font-bold flex items-center gap-2">
                   <i class="fa-solid fa-upload"></i>
-                  <span>تصدير المنتجات الحالية إلى Google Sheet</span>
+                  <span>استبدال منتجات Google Sheet بنسخة هذا المتصفح</span>
                 </button>
               </div>
             </div>
@@ -960,12 +1160,15 @@
     </div>
   </div>
 
+  <!-- Store pages suggested for ad links (filled by admin.js) -->
+  <datalist id="store-pages"></datalist>
+
   <!-- Toast Container -->
   <div id="admin-toast-container" class="fixed top-6 inset-inline-end-6 z-50 flex flex-col gap-2.5 pointer-events-none"></div>
 
   <!-- Scripts -->
-  <script src="config.js?v=20261101f"></script>
-  <script src="products.js?v=20261101f"></script>
-  <script src="admin.js?v=20261101f"></script>
+  <script src="config.js?v=20261101g"></script>
+  <script src="products.js?v=20261101g"></script>
+  <script src="admin.js?v=20261101g"></script>
 </body>
 </html>

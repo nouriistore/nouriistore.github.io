@@ -38,7 +38,7 @@ copies the site uses live in `assets/images/`.
 | `layout.js` | Shared announcement bar, header + category menu, footer, cart drawer, checkout and settings modals, injected into `#site-header`, `#site-footer`, `#site-overlays` on every storefront page |
 | `tailwind-config.js` | Shared Tailwind theme: bright pink `brand` scale (`#e85db3`), El Messiri display font |
 | `products.js` | Fallback catalog (27 products, 10 categories), used until / unless Google Drive answers |
-| `admin.html`, `admin.js`, `admin.css` | Admin portal: login, products CRUD with extra photos and videos, categories + home page banner tab, users (Admin/Editor), password change, first-login password setup |
+| `admin.html`, `admin.js`, `admin.css` | Admin portal. Tabs: overview, products (photos/videos), categories, discounts & coupons, ads & appearance (home ads slider, announcement bar, home banner), WhatsApp & social links, users, advanced (Drive URL, GitHub backup). Editors see overview + products only. Every upload/save shows in a progress panel (step, time, done/error) |
 | `config.js` | `googleScriptUrl` (live Apps Script web app) and GitHub repo settings |
 | `google_apps_script_backend.js` | Code pasted into Google Apps Script; creates/uses `Products`, `Categories`, `Settings`, `Users` and `Orders` sheets and a `Nourii Media` Drive folder |
 | `sync_google_to_github.py`, `sync_store.bat` | Pull products from the Sheet, rewrite `products.js`, commit and push |
@@ -77,8 +77,16 @@ copies the site uses live in `assets/images/`.
   to Drive (`uploadMedia`, up to 25 MB, played in Drive's player) or an .mp4 link; other links
   show as a "watch the video" button. Only `http(s)://` and `assets/` links are stored.
 - Category actions (`saveCategory`, `deleteCategory` (empty categories only),
-  `reorderCategories`) and `saveSettings` are admin only. Missing sheet columns are added
-  automatically on the first save.
+  `reorderCategories`), `getSettings` and `saveSettings` are admin only. Missing sheet
+  columns are added automatically on the first save.
+- `Settings` sheet keys (see `SETTINGS_SPEC` in the backend, each value cleaned on save):
+  `whatsappNumber` (where orders go; the storefront falls back to a placeholder until it is
+  set), `instagramUrl`/`facebookUrl`/`tiktokUrl`, `announcementAr`/`En` (top bar),
+  `adSlides` (home ads slider, JSON `[{src, link}]`), `heroImage`/`heroVideo`, `discounts`
+  (JSON `{store, categories[], products[]}`, each `{id, percent, endsAt}`) and `coupons`
+  (private: never in `getStore`; the cart checks a code with GET `checkCoupon`). The biggest
+  automatic discount that still applies wins; a coupon then comes off the cart total. Until
+  coupons are saved once, the old codes NOURII10 / NOUR10 (10%) and WELCOME (5%) work.
 - When the Apps Script backend changes, it must be re-pasted in Google Apps Script and
   redeployed; a new deployment gives a new URL that must go into `config.js`.
 
@@ -132,3 +140,9 @@ copies the site uses live in `assets/images/`.
   and `claude-code` in Antigravity 2.0's global `~/.gemini/config/mcp_config.json`.
 - 2026-11-01 (Claude Code): Owner redeployed the Apps Script as a new deployment; `config.js`
   now points at it. The admin page now prefers the `config.js` link over one saved in the browser.
+- 2026-11-01 (Claude Code): Added admin tabs for WhatsApp number + social links, home page ads
+  slider + announcement bar, and discounts (store / category / product, with end dates) +
+  coupon codes checked by the backend. Uploads and saves now show a progress panel. 5S
+  cleanup: grouped admin menu, removed the visitor "store settings" box and the header GitHub
+  button, the bulk "replace the sheet" export now asks first, and editing a product no longer
+  wipes its English description / rating. Owner must redeploy the Apps Script.

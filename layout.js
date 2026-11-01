@@ -80,7 +80,7 @@ function renderSiteHeader() {
   if (!el) return;
   el.innerHTML = `
     <!-- Announcement bar -->
-    <div class="announcement-bar">
+    <div id="announcement-bar" class="announcement-bar">
       <span>✨ خصم 10% على جميع الطلبات بكود <strong>NOURII10</strong></span>
       <span class="hidden sm:inline opacity-60">•</span>
       <span class="hidden sm:inline">شحن لجميع المحافظات 📦</span>
@@ -150,9 +150,9 @@ function renderSiteFooter() {
               متجر Nourii (نوري) - نصنع بحب أدوات الفنون اليدوية، مجسمات الكونكريت للأطفال، توزيعات المناسبات، والمفكرات المخصصة بالأسماء في مصر.
             </p>
             <div class="flex items-center gap-2.5">
-              <a href="https://instagram.com" target="_blank" rel="noopener" class="footer-social"><i class="fa-brands fa-instagram"></i></a>
-              <a href="https://facebook.com" target="_blank" rel="noopener" class="footer-social"><i class="fa-brands fa-facebook-f"></i></a>
-              <a href="https://tiktok.com" target="_blank" rel="noopener" class="footer-social"><i class="fa-brands fa-tiktok"></i></a>
+              <a id="footer-instagram" href="https://instagram.com" target="_blank" rel="noopener" class="footer-social"><i class="fa-brands fa-instagram"></i></a>
+              <a id="footer-facebook" href="https://facebook.com" target="_blank" rel="noopener" class="footer-social"><i class="fa-brands fa-facebook-f"></i></a>
+              <a id="footer-tiktok" href="https://tiktok.com" target="_blank" rel="noopener" class="footer-social"><i class="fa-brands fa-tiktok"></i></a>
               <a href="https://wa.me/201000000000" target="_blank" rel="noopener" class="footer-social js-whatsapp-link"><i class="fa-brands fa-whatsapp"></i></a>
             </div>
           </div>
@@ -179,9 +179,6 @@ function renderSiteFooter() {
         <div class="pt-6 border-t border-stone-200 dark:border-stone-800 text-xs text-stone-400 flex flex-col sm:flex-row items-center justify-between gap-3">
           <span>© 2026 Nourii - جميع الحقوق محفوظة</span>
           <div class="flex items-center gap-4">
-            <button onclick="openSettingsModal()" class="hover:text-brand-500 transition-colors flex items-center gap-1.5">
-              <i class="fa-solid fa-gear text-[11px]"></i><span>إعدادات المتجر</span>
-            </button>
             <a href="admin.html" class="hover:text-brand-500 transition-colors flex items-center gap-1.5">
               <i class="fa-solid fa-lock text-[11px]"></i><span>لوحة الإدارة</span>
             </a>
@@ -235,9 +232,9 @@ function renderSiteOverlays() {
 
         <div class="p-6 border-t border-stone-100 dark:border-stone-800">
           <div class="flex gap-2 mb-4">
-            <input type="text" id="promo-input" placeholder="كود الخصم (جرب NOURII10)"
+            <input type="text" id="promo-input" placeholder="كود الخصم"
               class="flex-1 px-4 py-2.5 text-xs rounded-full border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-800 uppercase focus:outline-none focus:ring-2 focus:ring-brand-300">
-            <button onclick="applyPromoCode()" class="btn-outline px-5 py-2.5 text-xs">تطبيق</button>
+            <button id="promo-apply-btn" onclick="applyPromoCode()" class="btn-outline px-5 py-2.5 text-xs">تطبيق</button>
           </div>
 
           <div class="space-y-2 text-sm mb-5">
@@ -290,22 +287,6 @@ function renderSiteOverlays() {
       </div>
     </div>
 
-    <!-- Store settings modal -->
-    <div id="settings-modal" class="fixed inset-0 z-50 flex items-center justify-center modal-backdrop p-4 hidden">
-      <div class="bg-white dark:bg-stone-900 rounded-3xl max-w-sm w-full p-6 shadow-2xl relative">
-        <button onclick="closeSettingsModal()" class="absolute top-4 end-4 w-8 h-8 rounded-full bg-stone-100 dark:bg-stone-800 text-stone-500 flex items-center justify-center">
-          <i class="fa-solid fa-xmark"></i>
-        </button>
-        <h3 class="font-display font-bold text-xl mb-1">إعدادات المتجر</h3>
-        <p class="text-xs text-stone-500 mb-4">رقم واتساب استقبال الطلبات</p>
-        <input type="text" id="set-whatsapp-phone" placeholder="مثال: 201012345678" class="${input}">
-        <p class="text-[11px] text-stone-400 mt-1.5 mb-5">اكتب الرقم بكود الدولة وبدون علامة +</p>
-        <div class="flex gap-2">
-          <button onclick="saveStoreSettings()" class="btn-primary flex-1 py-2.5 text-sm">حفظ</button>
-          <button onclick="closeSettingsModal()" class="btn-outline px-5 py-2.5 text-sm">إلغاء</button>
-        </div>
-      </div>
-    </div>
   `;
 }
 

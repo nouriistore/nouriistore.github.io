@@ -971,6 +971,15 @@ function doGet(e) {
       return createResponse({ status: "success", count: categories.length, data: categories });
     }
 
+    // التحقق من كود خصم يكتبه العميل في السلة (الأكواد نفسها لا تُرسل للزوار)
+    if (action === "checkCoupon") {
+      const code = String(e.parameter.code || "").trim().toUpperCase();
+      const coupons = readSettings_(ss, true).coupons || [];
+      const match = coupons.filter(function (c) { return c.code === code && c.active && stillValid_(c.endsAt); })[0];
+      if (!match) return createResponse({ status: "error", message: "invalid" });
+      return createResponse({ status: "success", code: match.code, percent: match.percent });
+    }
+
     // قائمة المستخدمين لم تعد عامة: تُطلب عبر POST مع جلسة مشرف
     if (action === "getUsers") {
       return createResponse({ status: "error", code: "unauthorized", message: "يجب تسجيل الدخول كمشرف" });
@@ -1399,7 +1408,13 @@ function doPost(e) {
       }
     }
 
-    // 14. إعدادات واجهة المتجر: صورة / فيديو الصفحة الرئيسية (للمشرف فقط)
+    // 14. كل إعدادات المتجر بما فيها أكواد الخصم (للمشرف فقط)
+    if (action === "getSettings") {
+      requireAuth_(ss, body, ["admin"]);
+      return createResponse({ status: "success", settings: readSettings_(ss, true) });
+    }
+
+    // 15. حفظ إعدادات المتجر: واتساب، السوشيال، شريط الإعلان، الإعلانات، الخصومات، الأكواد (للمشرف فقط)
     if (action === "saveSettings") {
       requireAuth_(ss, body, ["admin"]);
       const incoming = body.settings || {};
@@ -1411,7 +1426,9 @@ function doPost(e) {
         const data = sheet.getDataRange().getValues();
         SETTING_KEYS.forEach(function (key) {
           if (!(key in incoming)) return;
-          const value = cleanMediaUrl_(incoming[key]);
+          const spec = SETTINGS_SPEC[key];
+          const cleaned = spec.clean(incoming[key]);
+          const value = spec.json ? JSON.stringify(cleaned) : cleaned;
           for (let i = 1; i < data.length; i++) {
             if (String(data[i][0]) === key) {
               sheet.getRange(i + 1, 2).setValue(value);
@@ -1421,7 +1438,7 @@ function doPost(e) {
           sheet.appendRow([key, value]);
         });
         clearProductsCache_();
-        return createResponse({ status: "success", message: "تم حفظ إعدادات الواجهة", settings: readSettings_(ss) });
+        return createResponse({ status: "success", message: "تم حفظ الإعدادات", settings: readSettings_(ss, true) });
       } finally {
         lock.releaseLock();
       }
@@ -1449,8 +1466,101 @@ const CATEGORY_HEADERS = [
   "video", "sortOrder", "isActive"
 ];
 
-// Home page banner: a photo, or a video that replaces it
-const SETTING_KEYS = ["heroImage", "heroVideo"];
+// Store settings, one key/value row each in the Settings sheet. Every key has a cleaner so
+// only safe values are stored; `json` values are kept as JSON text; `private` ones (coupon
+// codes) are never sent to visitors.
+const SETTINGS_SPEC = {
+  heroImage: { clean: cleanMediaUrl_ },        // home page banner photo
+  heroVideo: { clean: cleanMediaUrl_ },        // home page banner video (shown instead of the photo)
+  whatsappNumber: { clean: cleanPhone_ },      // where orders are sent
+  instagramUrl: { clean: cleanMediaUrl_ },
+  facebookUrl: { clean: cleanMediaUrl_ },
+  tiktokUrl: { clean: cleanMediaUrl_ },
+  announcementAr: { clean: function (v) { return cleanText_(v, 200); } },  // bar at the top of every page
+  announcementEn: { clean: function (v) { return cleanText_(v, 200); } },
+  adSlides: { clean: cleanAdSlides_, json: true, empty: [] },              // ads slider on the home page
+  discounts: { clean: cleanDiscounts_, json: true, empty: { store: { percent: 0, endsAt: "" }, categories: [], products: [] } },
+  coupons: { clean: cleanCoupons_, json: true, private: true, empty: null }
+};
+const SETTING_KEYS = Object.keys(SETTINGS_SPEC);
+
+// The codes the store used before coupons were managed from the admin page
+const DEFAULT_COUPONS = [
+  { code: "NOURII10", percent: 10, endsAt: "", active: true },
+  { code: "NOUR10", percent: 10, endsAt: "", active: true },
+  { code: "WELCOME", percent: 5, endsAt: "", active: true }
+];
+
+function cleanText_(value, max) {
+  return String(value || "").replace(/[\u0000-\u001f<>]/g, " ").trim().slice(0, max);
+}
+
+// Digits only with the country code, e.g. 201012345678
+function cleanPhone_(value) {
+  const digits = String(value || "").replace(/\D/g, "");
+  return digits.length >= 8 && digits.length <= 15 ? digits : "";
+}
+
+function cleanPercent_(value) {
+  const n = Math.round(Number(value));
+  return n >= 1 && n <= 90 ? n : 0;
+}
+
+// "YYYY-MM-DD"; the discount still applies on that day
+function cleanDate_(value) {
+  const s = String(value || "").trim();
+  return /^\d{4}-\d{2}-\d{2}$/.test(s) ? s : "";
+}
+
+// Where an ad slide leads: a web link or one of the store's own pages
+function cleanLink_(value) {
+  const url = String(value || "").trim();
+  if (/^https?:\/\//i.test(url)) return url;
+  return /^(index|shop|product|giveaways)\.html(\?[\w=&%.\-]*)?$/.test(url) ? url : "";
+}
+
+function cleanAdSlides_(list) {
+  return (Array.isArray(list) ? list : []).map(function (s) {
+    return { src: cleanMediaUrl_(s && s.src), link: cleanLink_(s && s.link) };
+  }).filter(function (s) { return s.src; }).slice(0, 10);
+}
+
+function cleanDiscounts_(d) {
+  d = d || {};
+  const rules = function (list) {
+    return (Array.isArray(list) ? list : []).map(function (r) {
+      return { id: String((r && r.id) || "").slice(0, 80), percent: cleanPercent_(r && r.percent), endsAt: cleanDate_(r && r.endsAt) };
+    }).filter(function (r) { return r.id && r.percent; }).slice(0, 300);
+  };
+  return {
+    store: { percent: cleanPercent_(d.store && d.store.percent), endsAt: cleanDate_(d.store && d.store.endsAt) },
+    categories: rules(d.categories),
+    products: rules(d.products)
+  };
+}
+
+function cleanCoupons_(list) {
+  const seen = {};
+  return (Array.isArray(list) ? list : []).map(function (c) {
+    return {
+      code: String((c && c.code) || "").trim().toUpperCase(),
+      percent: cleanPercent_(c && c.percent),
+      endsAt: cleanDate_(c && c.endsAt),
+      active: !(c && c.active === false)
+    };
+  }).filter(function (c) {
+    if (!/^[A-Z0-9_-]{3,20}$/.test(c.code) || !c.percent || seen[c.code]) return false;
+    seen[c.code] = true;
+    return true;
+  }).slice(0, 50);
+}
+
+// True while a dated rule still applies (no date = no end)
+function stillValid_(endsAt) {
+  if (!endsAt) return true;
+  const today = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "yyyy-MM-dd");
+  return endsAt >= today;
+}
 
 const MAX_IMAGE_BASE64 = 7 * 1024 * 1024;   // about a 5 MB photo
 const MAX_VIDEO_BASE64 = 34 * 1024 * 1024;  // about a 25 MB video
@@ -1543,16 +1653,32 @@ function readCategories_(ss, includeHidden) {
   return list;
 }
 
-function readSettings_(ss) {
-  const settings = {};
-  SETTING_KEYS.forEach(function (key) { settings[key] = ""; });
+// Visitors get everything except private keys; the admin page asks with includePrivate
+function readSettings_(ss, includePrivate) {
+  const stored = {};
   const sheet = ss.getSheetByName("Settings");
-  if (!sheet) return settings;
-  const data = sheet.getDataRange().getValues();
-  for (let i = 1; i < data.length; i++) {
-    const key = String(data[i][0]);
-    if (SETTING_KEYS.indexOf(key) !== -1) settings[key] = String(data[i][1] || "");
+  if (sheet) {
+    const data = sheet.getDataRange().getValues();
+    for (let i = 1; i < data.length; i++) stored[String(data[i][0])] = data[i][1];
   }
+
+  const settings = {};
+  SETTING_KEYS.forEach(function (key) {
+    const spec = SETTINGS_SPEC[key];
+    if (spec.private && !includePrivate) return;
+    const raw = stored[key];
+    if (!spec.json) {
+      settings[key] = raw === undefined ? "" : String(raw);
+      return;
+    }
+    let value = spec.empty;
+    if (raw !== undefined && raw !== "") {
+      try { value = spec.clean(JSON.parse(String(raw))); } catch (err) { value = spec.empty; }
+    }
+    settings[key] = value;
+  });
+  // Coupons never set from the admin page: keep the codes the store already advertised
+  if (includePrivate && settings.coupons === null) settings.coupons = DEFAULT_COUPONS;
   return settings;
 }
 

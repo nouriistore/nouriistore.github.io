@@ -564,3 +564,107 @@ body.has-sticky-buy .floating-whatsapp-btn {
 ::-webkit-scrollbar-track { background: var(--bg-main); }
 ::-webkit-scrollbar-thumb { background: #e3dfe3; border-radius: var(--radius-full); }
 ::-webkit-scrollbar-thumb:hover { background: var(--primary); }
+
+/* Product page: "save X%" next to a discounted price */
+.sale-pill {
+  background: var(--primary);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 800;
+  padding: 3px 10px;
+  border-radius: var(--radius-full);
+  align-self: center;
+}
+
+/* Home page ads slider: swipe on phones, arrows and dots on computers */
+.ads-slider {
+  position: relative;
+  border-radius: 28px;
+  overflow: hidden;
+  background: #1c1917;
+}
+
+.ads-track {
+  display: flex;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  scroll-behavior: smooth;
+}
+
+.ads-slide {
+  position: relative;
+  flex: 0 0 100%;
+  scroll-snap-align: start;
+  height: clamp(220px, 42vw, 500px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.ads-slide img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* Videos fill the slide's height and keep their own shape */
+.ads-slide .media-frame {
+  height: 100%;
+  width: auto;
+  max-width: 100%;
+  margin-inline: auto;
+}
+
+.ads-slide .media-frame--wide { aspect-ratio: 16 / 9; }
+
+.ads-cta {
+  position: absolute;
+  bottom: 18px;
+  inset-inline-start: 18px;
+}
+
+.ads-arrow {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.9);
+  color: #1c1917;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.15);
+}
+
+.ads-arrow--prev { inset-inline-start: 14px; }
+.ads-arrow--next { inset-inline-end: 14px; }
+
+.ads-dots {
+  position: absolute;
+  bottom: 12px;
+  inset-inline: 0;
+  display: flex;
+  justify-content: center;
+  gap: 6px;
+  pointer-events: none;
+}
+
+.ads-dots button {
+  pointer-events: auto;
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.55);
+  transition: width 0.25s ease, background-color 0.25s ease;
+}
+
+.ads-dots button.is-active {
+  width: 22px;
+  background: var(--primary);
+}
+
+@media (max-width: 639px) {
+  .ads-arrow { display: none; }
+}

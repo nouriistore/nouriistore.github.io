@@ -14,7 +14,7 @@ const APP_STATE = {
   promoCode: null,
   discountRate: 0,
   settings: {
-    whatsappNumber: '201000000000', // رقم الواتساب الافتراضي - يمكن تغييره من الإعدادات
+    whatsappNumber: '201000000000', // placeholder until the number is set in the admin page (Store settings)
     storeName: 'Nourii',
     currencyAr: 'ج.م',
     currencyEn: 'EGP',
@@ -24,8 +24,15 @@ const APP_STATE = {
   }
 };
 
-// Home page banner chosen in the admin page (Settings sheet)
-const STORE_SETTINGS = { heroImage: '', heroVideo: '' };
+// Store settings chosen in the admin page (Settings sheet): home banner, ads slider,
+// announcement bar, WhatsApp number, social links and discounts
+const STORE_SETTINGS = {
+  heroImage: '', heroVideo: '',
+  whatsappNumber: '', instagramUrl: '', facebookUrl: '', tiktokUrl: '',
+  announcementAr: '', announcementEn: '',
+  adSlides: [],
+  discounts: { store: { percent: 0, endsAt: '' }, categories: [], products: [] }
+};
 
 // INITIALIZATION
 document.addEventListener('DOMContentLoaded', () => {
@@ -68,6 +75,8 @@ function applyUrlFilters() {
 function renderStorefront() {
   if (typeof renderHeaderNav === 'function') renderHeaderNav();
   if (typeof renderFooterCategories === 'function') renderFooterCategories();
+  applyStoreContact();
+  renderAdsSlider();
   renderHeroMedia();
   renderCategoryShowcase();
   renderFeaturedProducts();
@@ -177,9 +186,6 @@ function loadStoredData() {
 
     const savedLang = localStorage.getItem('nourii_lang');
     if (savedLang) APP_STATE.lang = savedLang;
-
-    const savedSettings = localStorage.getItem('nourii_settings');
-    if (savedSettings) APP_STATE.settings = { ...APP_STATE.settings, ...JSON.parse(savedSettings) };
 
     // Last store data from Google Drive (or products edited in the admin page on this browser)
     try {
@@ -360,8 +366,8 @@ function productCardHTML(prod) {
   const isAr = APP_STATE.lang === 'ar';
   const isFav = APP_STATE.favorites.includes(prod.id);
   const name = escapeHtml(isAr ? prod.nameAr : prod.nameEn);
-  const onSale = prod.originalPrice && Number(prod.originalPrice) > Number(prod.price);
-  const salePercent = onSale ? Math.round((1 - prod.price / prod.originalPrice) * 100) : 0;
+  const price = priceInfo(prod);
+  const onSale = price.was > 0;
   const images = getProductImages(prod);
   const hasVideo = getProductVideos(prod).length > 0;
 
@@ -370,7 +376,7 @@ function productCardHTML(prod) {
       <a href="${productUrl(prod.id)}" class="product-card-img block">
         <img src="${escapeHtml(images[0] || '')}" alt="${name}" loading="lazy">
         ${images[1] ? `<img src="${escapeHtml(images[1])}" alt="" loading="lazy" class="product-card-img-alt">` : ''}
-        ${onSale ? `<span class="sale-tag">${isAr ? `خصم ${salePercent}%` : `-${salePercent}%`}</span>` : ''}
+        ${onSale ? `<span class="sale-tag">${isAr ? `خصم ${price.percent}%` : `-${price.percent}%`}</span>` : ''}
         ${hasVideo ? `<span class="video-tag"><i class="fa-solid fa-play"></i>${isAr ? 'فيديو' : 'Video'}</span>` : ''}
         <button onclick="event.preventDefault(); event.stopPropagation(); toggleFavorite('${prod.id}')"
           class="absolute top-3 end-3 w-9 h-9 rounded-full bg-white/95 dark:bg-stone-900/90 flex items-center justify-center text-stone-500 hover:text-brand-500 transition-colors"
@@ -384,8 +390,8 @@ function productCardHTML(prod) {
           ${name}
         </a>
         <div class="flex items-baseline gap-2 mb-3">
-          <span class="price-now text-base">${formatPrice(prod.price)}</span>
-          ${onSale ? `<span class="price-old text-xs">${formatPrice(prod.originalPrice)}</span>` : ''}
+          <span class="price-now text-base">${formatPrice(price.now)}</span>
+          ${onSale ? `<span class="price-old text-xs">${formatPrice(price.was)}</span>` : ''}
         </div>
         <button onclick="quickAddToCart('${prod.id}')" class="btn-outline mt-auto h-10 text-sm w-full">
           ${prod.isCustomizable ? (isAr ? 'اختر التفاصيل' : 'Choose options') : (isAr ? 'أضف للسلة' : 'Add to cart')}
@@ -420,9 +426,9 @@ function renderProducts() {
   });
 
   if (APP_STATE.sortBy === 'price-asc') {
-    filtered.sort((a, b) => a.price - b.price);
+    filtered.sort((a, b) => priceInfo(a).now - priceInfo(b).now);
   } else if (APP_STATE.sortBy === 'price-desc') {
-    filtered.sort((a, b) => b.price - a.price);
+    filtered.sort((a, b) => priceInfo(b).now - priceInfo(a).now);
   } else if (APP_STATE.sortBy === 'rating') {
     filtered.sort((a, b) => b.rating - a.rating);
   }
@@ -471,6 +477,154 @@ function updateFavBadge() {
     badge.innerText = count;
     badge.classList.toggle('hidden', count === 0);
   }
+}
+
+// PRICES & DISCOUNTS
+// Discounts set in the admin page: whole store, per category, per product. The biggest one that
+// still applies wins (they don't add up). A coupon code then comes off the cart total.
+function todayString() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+function activeDiscountPercent(prod) {
+  const d = STORE_SETTINGS.discounts || {};
+  const today = todayString();
+  const applies = rule => rule && Number(rule.percent) > 0 && (!rule.endsAt || rule.endsAt >= today);
+  const rules = [
+    d.store,
+    ...(d.categories || []).filter(r => r.id === prod.categoryId),
+    ...(d.products || []).filter(r => r.id === prod.id)
+  ].filter(applies);
+  return rules.length ? Math.max(...rules.map(r => Number(r.percent))) : 0;
+}
+
+// now: what the customer pays; was: the crossed-out price (0 when there is none)
+function priceInfo(prod) {
+  const base = Number(prod.price) || 0;
+  const percent = activeDiscountPercent(prod);
+  const now = percent ? Math.round(base * (100 - percent) / 100) : base;
+  const was = Math.max(Number(prod.originalPrice) || 0, percent ? base : 0);
+  return was > now
+    ? { now, was, percent: Math.round((1 - now / was) * 100) }
+    : { now, was: 0, percent: 0 };
+}
+
+// Cart lines follow today's price, so a discount added or ended later is reflected
+function cartItemPrice(item) {
+  const prod = PRODUCTS.find(p => p.id === item.id);
+  return prod ? priceInfo(prod).now : Number(item.price) || 0;
+}
+
+// ADS SLIDER (home page): photos and videos chosen in the admin page
+let adsRenderedKey = null;
+let adsIndex = 0;
+let adsTimer = null;
+
+function renderAdsSlider() {
+  const section = document.getElementById('ads-slider');
+  if (!section) return;
+  const slides = (STORE_SETTINGS.adSlides || []).filter(s => s && s.src);
+  const key = JSON.stringify(slides) + APP_STATE.lang;
+  if (key === adsRenderedKey) return; // keep a playing video playing
+  adsRenderedKey = key;
+
+  section.classList.toggle('hidden', slides.length === 0);
+  if (!slides.length) {
+    section.innerHTML = '';
+    return;
+  }
+
+  const isAr = APP_STATE.lang === 'ar';
+  const shopLabel = isAr ? 'تسوق الآن' : 'Shop now';
+  section.innerHTML = `
+    <div class="ads-slider">
+      <div id="ads-track" class="ads-track no-scrollbar">
+        ${slides.map((s, i) => {
+          // Links videoSource can't play are treated as photos
+          const kind = videoSource(s.src)?.kind;
+          const isVideo = kind === 'iframe' || kind === 'video';
+          const link = s.link ? escapeHtml(s.link) : '';
+          if (isVideo) {
+            return `
+              <div class="ads-slide" data-index="${i}" data-video="1">
+                ${videoFrameHTML(s.src)}
+                ${link ? `<a href="${link}" class="ads-cta btn-primary h-10 px-6 text-sm inline-flex items-center">${shopLabel}</a>` : ''}
+              </div>`;
+          }
+          const img = `<img src="${escapeHtml(s.src)}" alt="" ${i ? 'loading="lazy"' : ''}>`;
+          return `<div class="ads-slide" data-index="${i}">${link ? `<a href="${link}" class="block w-full h-full">${img}</a>` : img}</div>`;
+        }).join('')}
+      </div>
+      ${slides.length > 1 ? `
+        <button class="ads-arrow ads-arrow--prev" onclick="goToAd(adsIndex - 1)" aria-label="${isAr ? 'السابق' : 'Previous'}"><i class="fa-solid fa-chevron-${isAr ? 'right' : 'left'}"></i></button>
+        <button class="ads-arrow ads-arrow--next" onclick="goToAd(adsIndex + 1)" aria-label="${isAr ? 'التالي' : 'Next'}"><i class="fa-solid fa-chevron-${isAr ? 'left' : 'right'}"></i></button>
+        <div class="ads-dots">
+          ${slides.map((_, i) => `<button onclick="goToAd(${i})" class="${i === 0 ? 'is-active' : ''}" aria-label="${i + 1}"></button>`).join('')}
+        </div>` : ''}
+    </div>`;
+
+  adsIndex = 0;
+  const track = document.getElementById('ads-track');
+  // Swiping on a phone moves the track; keep the dots and timer in step with it
+  const observer = new IntersectionObserver(entries => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting) setActiveAd(Number(entry.target.dataset.index));
+    });
+  }, { root: track, threshold: 0.6 });
+  track.querySelectorAll('.ads-slide').forEach(el => observer.observe(el));
+  setActiveAd(0);
+}
+
+function goToAd(index) {
+  const track = document.getElementById('ads-track');
+  if (!track) return;
+  const count = track.children.length;
+  const target = (index + count) % count;
+  const dir = document.documentElement.dir === 'rtl' ? -1 : 1;
+  track.scrollTo({ left: dir * target * track.clientWidth, behavior: 'smooth' });
+}
+
+// Photos stay 5 seconds, videos 20; a video stops when its slide is left
+function setActiveAd(index) {
+  const track = document.getElementById('ads-track');
+  if (!track) return;
+  const previous = track.children[adsIndex];
+  if (previous && index !== adsIndex) {
+    previous.querySelectorAll('video').forEach(v => v.pause());
+    previous.querySelectorAll('iframe').forEach(f => { f.src = f.src; }); // reloading an embed stops it
+  }
+  adsIndex = index;
+  document.querySelectorAll('.ads-dots button').forEach((b, i) => b.classList.toggle('is-active', i === index));
+
+  clearTimeout(adsTimer);
+  if (track.children.length < 2) return;
+  const isVideo = track.children[index]?.dataset.video === '1';
+  adsTimer = setTimeout(() => {
+    if (document.hidden) return setActiveAd(adsIndex);
+    goToAd(adsIndex + 1);
+  }, isVideo ? 20000 : 5000);
+}
+
+// ANNOUNCEMENT BAR, WHATSAPP NUMBER & SOCIAL LINKS (set in the admin page)
+function applyStoreContact() {
+  if (STORE_SETTINGS.whatsappNumber) APP_STATE.settings.whatsappNumber = STORE_SETTINGS.whatsappNumber;
+  updateWhatsAppLinks();
+
+  const isAr = APP_STATE.lang === 'ar';
+  const text = (isAr ? STORE_SETTINGS.announcementAr : STORE_SETTINGS.announcementEn) || STORE_SETTINGS.announcementAr;
+  const bar = document.getElementById('announcement-bar');
+  if (bar) {
+    if (bar.dataset.defaultHtml === undefined) bar.dataset.defaultHtml = bar.innerHTML;
+    bar.innerHTML = text ? `<span>${escapeHtml(text)}</span>` : bar.dataset.defaultHtml;
+  }
+
+  [['instagram', 'instagramUrl'], ['facebook', 'facebookUrl'], ['tiktok', 'tiktokUrl']].forEach(([name, key]) => {
+    const a = document.getElementById(`footer-${name}`);
+    if (!a) return;
+    a.href = STORE_SETTINGS[key] || '#';
+    a.classList.toggle('hidden', !STORE_SETTINGS[key]);
+  });
 }
 
 // PRODUCT PAGE (product.html?id=...)
@@ -627,7 +781,8 @@ function renderProductPage() {
   const desc = escapeHtml(isAr ? prod.descriptionAr : prod.descriptionEn);
   const badge = escapeHtml(isAr ? prod.badgeAr : prod.badgeEn);
   const customLabel = escapeHtml(isAr ? prod.customFieldLabelAr : prod.customFieldLabelEn);
-  const onSale = prod.originalPrice && Number(prod.originalPrice) > Number(prod.price);
+  const price = priceInfo(prod);
+  const onSale = price.was > 0;
   const isFav = APP_STATE.favorites.includes(prod.id);
   const images = getProductImages(prod);
   const videos = getProductVideos(prod);
@@ -678,8 +833,9 @@ function renderProductPage() {
         <h1 class="text-3xl sm:text-4xl font-bold leading-snug mt-1 mb-4">${name}</h1>
 
         <div class="flex items-baseline gap-3 mb-6">
-          <span class="price-now text-3xl font-display">${formatPrice(prod.price)}</span>
-          ${onSale ? `<span class="price-old text-lg">${formatPrice(prod.originalPrice)}</span>` : ''}
+          <span class="price-now text-3xl font-display">${formatPrice(price.now)}</span>
+          ${onSale ? `<span class="price-old text-lg">${formatPrice(price.was)}</span>
+            <span class="sale-pill">${isAr ? `وفّر ${price.percent}%` : `Save ${price.percent}%`}</span>` : ''}
         </div>
 
         ${prod.isCustomizable ? `
@@ -741,7 +897,7 @@ function renderProductPage() {
   const stickyName = document.getElementById('sticky-buy-name');
   if (stickyName) stickyName.innerText = isAr ? prod.nameAr : prod.nameEn;
   const stickyPrice = document.getElementById('sticky-buy-price');
-  if (stickyPrice) stickyPrice.innerText = formatPrice(prod.price);
+  if (stickyPrice) stickyPrice.innerText = formatPrice(price.now);
   setupStickyBuyBar();
 
   // Related products from the same category
@@ -846,7 +1002,7 @@ function addItemToCart(product, qty, customText, { silent = false } = {}) {
       id: product.id,
       nameAr: product.nameAr,
       nameEn: product.nameEn,
-      price: product.price,
+      price: priceInfo(product).now,
       image: product.image,
       qty: qty,
       customText: customText
@@ -953,7 +1109,7 @@ function renderCartDrawer() {
   let subtotal = 0;
 
   itemsContainer.innerHTML = APP_STATE.cart.map((item, index) => {
-    const itemTotal = item.price * item.qty;
+    const itemTotal = cartItemPrice(item) * item.qty;
     subtotal += itemTotal;
     const name = escapeHtml(isAr ? item.nameAr : item.nameEn);
 
@@ -1003,31 +1159,43 @@ function renderCartDrawer() {
   if (totalEl) totalEl.innerText = `${finalTotal} ${currency}`;
 }
 
-// PROMO CODE
+// PROMO CODE (codes are set in the admin page and checked by Google Drive)
+const LEGACY_PROMO_CODES = { NOURII10: 10, NOUR10: 10, WELCOME: 5 };
+
 function applyPromoCode() {
   const input = document.getElementById('promo-input');
   if (!input) return;
 
   const code = input.value.trim().toUpperCase();
   const isAr = APP_STATE.lang === 'ar';
-
-  if (code === 'NOURII10' || code === 'NOUR10') {
-    APP_STATE.promoCode = code;
-    APP_STATE.discountRate = 0.10; // 10%
-    showToast(isAr ? 'تم تطبيق كود الخصم 10% بنجاح! 🎉' : '10% discount promo applied! 🎉', 'success');
-  } else if (code === 'WELCOME') {
-    APP_STATE.promoCode = code;
-    APP_STATE.discountRate = 0.05; // 5%
-    showToast(isAr ? 'تم تطبيق كود الترحيب 5% بنجاح! 🎁' : '5% welcome promo applied! 🎁', 'success');
-  } else if (code === '') {
+  if (code === '') {
     showToast(isAr ? 'يرجى كتابة كود الخصم أولاً' : 'Please enter promo code', 'error');
-    return;
-  } else {
-    showToast(isAr ? 'كود الخصم غير صالح' : 'Invalid promo code', 'error');
     return;
   }
 
-  renderCartDrawer();
+  const accept = percent => {
+    APP_STATE.promoCode = code;
+    APP_STATE.discountRate = percent / 100;
+    showToast(isAr ? `تم تطبيق كود الخصم ${percent}% بنجاح! 🎉` : `${percent}% discount applied! 🎉`, 'success');
+    renderCartDrawer();
+  };
+  const reject = () => showToast(isAr ? 'كود الخصم غير صالح أو انتهى' : 'Invalid or expired promo code', 'error');
+
+  const driveUrl = typeof NOURII_CONFIG !== 'undefined' && NOURII_CONFIG.googleScriptUrl;
+  if (!driveUrl) return LEGACY_PROMO_CODES[code] ? accept(LEGACY_PROMO_CODES[code]) : reject();
+
+  const btn = document.getElementById('promo-apply-btn');
+  if (btn) btn.disabled = true;
+  fetch(`${driveUrl}?action=checkCoupon&code=${encodeURIComponent(code)}`)
+    .then(res => res.json())
+    .then(res => {
+      if (res.status === 'success' && Number(res.percent) > 0) return accept(Number(res.percent));
+      // Apps Script not redeployed yet: it doesn't know checkCoupon
+      if (res.message === 'Unknown action' && LEGACY_PROMO_CODES[code]) return accept(LEGACY_PROMO_CODES[code]);
+      reject();
+    })
+    .catch(() => showToast(isAr ? 'تعذر التحقق من الكود، حاول مرة أخرى' : 'Could not check the code, try again', 'error'))
+    .finally(() => { if (btn) btn.disabled = false; });
 }
 
 // WHATSAPP CHECKOUT (مولد رسائل الواتساب الذكي)
@@ -1077,7 +1245,7 @@ function executeWhatsAppOrder() {
   let itemsListText = '';
 
   APP_STATE.cart.forEach((item, i) => {
-    const itemTotal = item.price * item.qty;
+    const itemTotal = cartItemPrice(item) * item.qty;
     subtotal += itemTotal;
     const itemName = isAr ? item.nameAr : item.nameEn;
     itemsListText += `\n${i + 1}. *${itemName}*\n   - الكمية: ${item.qty}\n   - السعر: ${itemTotal} ${currency}`;
@@ -1292,36 +1460,6 @@ function toggleFaq(index) {
   }
 }
 
-// STORE SETTINGS MODAL (لتعديل رقم الواتساب وروابط السوشيال بسهولة)
-function openSettingsModal() {
-  const modal = document.getElementById('settings-modal');
-  if (!modal) return;
-
-  const phoneInput = document.getElementById('set-whatsapp-phone');
-  if (phoneInput) phoneInput.value = APP_STATE.settings.whatsappNumber;
-
-  modal.classList.remove('hidden');
-  document.body.style.overflow = 'hidden';
-}
-
-function closeSettingsModal() {
-  const modal = document.getElementById('settings-modal');
-  if (modal) modal.classList.add('hidden');
-  document.body.style.overflow = '';
-}
-
-function saveStoreSettings() {
-  const phoneInput = document.getElementById('set-whatsapp-phone');
-  if (phoneInput && phoneInput.value.trim() !== '') {
-    APP_STATE.settings.whatsappNumber = phoneInput.value.trim();
-  }
-
-  localStorage.setItem('nourii_settings', JSON.stringify(APP_STATE.settings));
-  updateWhatsAppLinks();
-  closeSettingsModal();
-  showToast(APP_STATE.lang === 'ar' ? 'تم حفظ الإعدادات بنجاح!' : 'Settings saved successfully!', 'success');
-}
-
 // TOAST NOTIFICATIONS
 function showToast(message, type = 'info') {
   let container = document.getElementById('toast-container');
@@ -1379,7 +1517,6 @@ function setupEventListeners() {
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') {
       closeCheckoutModal();
-      closeSettingsModal();
       const cartDrawer = document.getElementById('cart-drawer');
       if (cartDrawer && !cartDrawer.classList.contains('hidden')) {
         toggleCartDrawer();
