@@ -43,7 +43,7 @@ try:
     if push_res.returncode == 0:
         print("\n" + "=" * 60)
         print("🎉 تم رفع ومزامنة التعديلات بنجاح إلى GitHub!")
-        print("👉 رابط المتجر المباشر: https://yaminakkady.github.io/nourii/")
+        print("👉 رابط المتجر المباشر: https://nouriistore.github.io/")
         print("=" * 60)
     else:
         print(f"تنبيه أثناء الرفع: {push_res.stderr}")

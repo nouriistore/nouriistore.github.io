@@ -10,9 +10,9 @@ A static online store for the Nourii brand (handmade prints, coloring kits, even
 notebooks, kids' learning tools). Arabic-first, RTL, with English toggle and dark mode.
 Orders are sent through WhatsApp; there is no payment gateway.
 
-- Live site: https://yaminakkady.github.io/nourii/
-- Admin page: https://yaminakkady.github.io/nourii/admin.html
-- Repo: https://github.com/yaminakkady/nourii (branch `main`, served by GitHub Pages)
+- Live site: https://nouriistore.github.io/
+- Admin page: https://nouriistore.github.io/admin.html
+- Repo: https://github.com/nouriistore/nouriistore.github.io (branch `main`, served by GitHub Pages)
 
 ### The 10 categories
 كونكريت للتلوين · كتب تلوين · صور مغناطيس و بروش · توزيعات مناسبات · نوت بوك ·

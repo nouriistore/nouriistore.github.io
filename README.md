@@ -87,5 +87,5 @@
 4. **المزامنة والنشر التلقائي على GitHub**:
    - يمكنك نشر التعديلات مباشرة عبر الضغط على **"نشر على GitHub"** في لوحة الإدارة.
    - أو تشغيل ملف **[`sync_store.bat`](sync_store.bat)** على جهازك لنشر كل التعديلات بنقرة واحدة إلى:
-     👉 `https://yaminakkady.github.io/nourii/`
+     👉 `https://nouriistore.github.io/`
 

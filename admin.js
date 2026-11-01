@@ -13,7 +13,7 @@ const ADMIN_STATE = {
   settings: {
     googleScriptUrl: '',
     githubToken: '',
-    githubRepo: 'yaminakkady/nourii',
+    githubRepo: 'nouriistore/nouriistore.github.io',
     githubBranch: 'main'
   }
 };
@@ -1145,7 +1145,7 @@ const NOURII_CONFIG = {
   googleScriptUrl: '${ADMIN_STATE.settings.googleScriptUrl || ''}',
 
   // مستودع وبيانات GitHub
-  githubRepo: 'yaminakkady/nourii',
+  githubRepo: 'nouriistore/nouriistore.github.io',
   githubBranch: 'main'
 };
 `;
