@@ -13,6 +13,9 @@ Orders are sent through WhatsApp; there is no payment gateway.
 - Live site: https://nouriistore.github.io/
 - Admin page: https://nouriistore.github.io/admin.html
 - Repo: https://github.com/nouriistore/nouriistore.github.io (branch `main`, served by GitHub Pages)
+- The old address `yaminakkady.github.io/nourii/` (repo `yaminakkady/nourii`, git remote
+  `old-origin`) now only holds redirect pages to the same page on the new address. Push
+  store changes to `origin` (nouriistore/nouriistore.github.io), never to `old-origin`.
 
 ### The 10 categories
 كونكريت للتلوين · كتب تلوين · صور مغناطيس و بروش · توزيعات مناسبات · نوت بوك ·
@@ -101,3 +104,6 @@ copies the site uses live in `assets/images/`.
   token and the right role, passwords are hashed, login lockout added, user list no longer
   public, default password removed from the site/docs. Added backend + storefront product
   caching. Owner must redeploy the Apps Script for the backend part to take effect.
+- 2026-11-01 (Claude Code): Moved the store to the free address https://nouriistore.github.io
+  (GitHub organization `nouriistore`). Old `yaminakkady.github.io/nourii/...` links redirect to
+  the same page there. Browser data (cart, favorites, admin login) starts fresh on the new address.
