@@ -40,29 +40,19 @@ function loadAdminStoredData() {
     const ghToken = localStorage.getItem('nourii_github_pat');
     if (ghToken) ADMIN_STATE.settings.githubToken = ghToken;
 
-    // 2. Current user session
+    // 2. Current user session (a signed token issued by the Google backend)
     const session = localStorage.getItem('nourii_admin_session');
     if (session) ADMIN_STATE.currentUser = JSON.parse(session);
-
-    // 3. Users list
-    const storedUsers = localStorage.getItem('nourii_admin_users');
-    if (storedUsers) {
-      ADMIN_STATE.users = JSON.parse(storedUsers);
-    } else {
-      // Default users list with super admin
-      ADMIN_STATE.users = [
-        {
-          username: 'admin',
-          password: 'nourii2026',
-          fullName: 'مدير النظام (Super Admin)',
-          role: 'admin',
-          createdAt: new Date().toLocaleDateString('ar-EG'),
-          isActive: true,
-          mustChangePassword: false
-        }
-      ];
-      localStorage.setItem('nourii_admin_users', JSON.stringify(ADMIN_STATE.users));
+    if (ADMIN_STATE.currentUser && !ADMIN_STATE.currentUser.token && !ADMIN_STATE.currentUser.legacy) {
+      // Sessions saved before logins used tokens are no longer valid
+      ADMIN_STATE.currentUser = null;
+      localStorage.removeItem('nourii_admin_session');
     }
+
+    // 3. Users list (display only — passwords are never stored in the browser)
+    const storedUsers = localStorage.getItem('nourii_admin_users');
+    ADMIN_STATE.users = storedUsers ? JSON.parse(storedUsers).map(stripPassword) : [];
+    saveUsersToStorage();
 
     // 4. Products (Custom from storage or fallback from products.js)
     const storedProds = localStorage.getItem('nourii_admin_products') || localStorage.getItem('nourii_live_products');
@@ -81,12 +71,58 @@ function loadAdminStoredData() {
     // If Google Drive URL is active, fetch live data from Google Drive as PRIMARY source
     if (ADMIN_STATE.settings.googleScriptUrl) {
       syncSilentlyFromGoogleDrive();
-      fetchLiveUsersFromGoogleDrive();
+      if (ADMIN_STATE.currentUser) {
+        verifySessionWithDrive();
+        if (ADMIN_STATE.currentUser.role === 'admin') fetchLiveUsersFromGoogleDrive();
+      }
     }
 
   } catch (e) {
     console.error('Error loading admin state:', e);
   }
+}
+
+function stripPassword(user) {
+  const { password, ...rest } = user || {};
+  return rest;
+}
+
+function saveUsersToStorage() {
+  localStorage.setItem('nourii_admin_users', JSON.stringify(ADMIN_STATE.users.map(stripPassword)));
+}
+
+function escapeHtml(text) {
+  return String(text ?? '').replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
+}
+
+// Every change goes through here so it carries the session token.
+// If the backend rejects the session (expired, user deleted/disabled, password changed) we log out.
+function driveRequest(payload) {
+  const url = ADMIN_STATE.settings.googleScriptUrl;
+  if (!url) return Promise.reject(new Error('Google Drive is not connected'));
+  const token = ADMIN_STATE.currentUser && ADMIN_STATE.currentUser.token;
+  return fetch(url, {
+    method: 'POST',
+    body: JSON.stringify(token ? { ...payload, token } : payload)
+  })
+    .then(res => {
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      return res.json();
+    })
+    .then(data => {
+      if (data && data.code === 'unauthorized' && ADMIN_STATE.currentUser) {
+        endSession(data.message || 'انتهت الجلسة، يرجى تسجيل الدخول مجدداً.');
+      }
+      return data;
+    });
+}
+
+function endSession(message) {
+  ADMIN_STATE.currentUser = null;
+  ADMIN_STATE.pendingLogin = null;
+  localStorage.removeItem('nourii_admin_session');
+  showAdminToast(message, 'error');
+  checkAuthSession();
 }
 
 // AUTHENTICATION & SESSION MANAGEMENT
@@ -117,55 +153,47 @@ function handleLoginSubmit(e) {
   const username = usernameInput ? usernameInput.value.trim().toLowerCase() : '';
   const password = passwordInput ? passwordInput.value.trim() : '';
 
-  // 🟢 عند ربط Google Drive: التحقق يتم من Google Drive فقط (المصدر الوحيد)
-  // حتى لا يتمكن أي مستخدم محذوف من الدخول بسبب نسخة قديمة مخزنة في المتصفح
-  if (ADMIN_STATE.settings.googleScriptUrl) {
-    checkLoginWithGoogleDrive(username, password);
+  // التحقق يتم من Google Drive فقط (المصدر الوحيد للمستخدمين وكلمات المرور)
+  if (!ADMIN_STATE.settings.googleScriptUrl) {
+    showLoginError('لا يمكن تسجيل الدخول: رابط Google Apps Script غير مضبوط في config.js.');
     return;
   }
-
-  // وضع عدم الاتصال فقط (بدون Google Drive)
-  const user = ADMIN_STATE.users.find(u => u.username.toLowerCase() === username && u.password === password);
-  if (!user) {
-    showLoginError('اسم المستخدم أو كلمة المرور غير صحيحة.');
-    return;
-  }
-  if (user.isActive === false) {
-    showLoginError('هذا الحساب معطل حالياً من قِبل الإدارة.');
-    return;
-  }
-  if (user.mustChangePassword) {
-    showFirstTimePasswordScreen(user);
-    return;
-  }
-  completeUserLogin(user);
+  checkLoginWithGoogleDrive(username, password);
 }
 
-// التحقق من أن المستخدم الحالي ما زال موجوداً ومفعلاً في Google Drive، وإلا يتم تسجيل خروجه فوراً
-function validateCurrentSessionWithDrive(remoteUsers) {
-  if (!ADMIN_STATE.currentUser) return;
-  const me = remoteUsers.find(u => String(u.username).toLowerCase() === String(ADMIN_STATE.currentUser.username).toLowerCase());
-  if (!me || me.isActive === false) {
-    ADMIN_STATE.currentUser = null;
-    localStorage.removeItem('nourii_admin_session');
-    showAdminToast('تم إنهاء الجلسة: هذا الحساب لم يعد موجوداً أو تم تعطيله.', 'error');
-    checkAuthSession();
-  }
+// Confirms with Google Drive that the saved session is still valid (user exists, active, same password)
+function verifySessionWithDrive() {
+  if (!ADMIN_STATE.currentUser || !ADMIN_STATE.currentUser.token) return;
+  driveRequest({ action: 'getSession' })
+    .then(res => {
+      if (res.status === 'success' && res.user) {
+        ADMIN_STATE.currentUser = { ...ADMIN_STATE.currentUser, fullName: res.user.fullName, role: res.user.role };
+        localStorage.setItem('nourii_admin_session', JSON.stringify(ADMIN_STATE.currentUser));
+        updateUserProfileDisplay();
+        applyRoleVisibility();
+      }
+    })
+    .catch(err => console.warn('Session check failed (offline?):', err));
 }
 
-function completeUserLogin(user) {
+function completeUserLogin(user, token) {
   ADMIN_STATE.currentUser = {
     username: user.username,
     fullName: user.fullName,
-    role: user.role
+    role: user.role,
+    token: token || null,
+    // Older backend versions don't issue tokens; remember that so the session isn't discarded
+    legacy: !token
   };
+  ADMIN_STATE.pendingLogin = null;
 
   localStorage.setItem('nourii_admin_session', JSON.stringify(ADMIN_STATE.currentUser));
   const errorMsg = document.getElementById('login-error-msg');
   if (errorMsg) errorMsg.classList.add('hidden');
 
-  showAdminToast(`مرحباً بك مجدداً، ${user.fullName} 👋`, 'success');
+  showAdminToast(`مرحباً بك مجدداً، ${user.fullName || user.username} 👋`, 'success');
   checkAuthSession();
+  if (user.role === 'admin') fetchLiveUsersFromGoogleDrive();
 }
 
 function checkLoginWithGoogleDrive(username, password) {
@@ -190,19 +218,15 @@ function checkLoginWithGoogleDrive(username, password) {
   })
   .then(res => {
     if (res.status === 'success' && res.user) {
-      // مزامنة المستخدم محلياً
-      const existingIdx = ADMIN_STATE.users.findIndex(u => u.username.toLowerCase() === res.user.username.toLowerCase());
-      if (existingIdx > -1) {
-        ADMIN_STATE.users[existingIdx] = { ...ADMIN_STATE.users[existingIdx], ...res.user, password };
-      } else {
-        ADMIN_STATE.users.push({ ...res.user, password, isActive: true, createdAt: new Date().toLocaleDateString('ar-EG') });
-      }
-      localStorage.setItem('nourii_admin_users', JSON.stringify(ADMIN_STATE.users));
+      const passwordInput = document.getElementById('login-password');
+      if (passwordInput) passwordInput.value = '';
 
       if (res.user.mustChangePassword) {
+        // Keep the temporary password in memory only, to confirm the change
+        ADMIN_STATE.pendingLogin = { user: res.user, token: res.token || null, password };
         showFirstTimePasswordScreen(res.user);
       } else {
-        completeUserLogin(res.user);
+        completeUserLogin(res.user, res.token);
       }
     } else {
       showLoginError(res.message || 'اسم المستخدم أو كلمة المرور غير صحيحة.');
@@ -227,6 +251,7 @@ function showLoginError(msg) {
 
 function handleLogout() {
   ADMIN_STATE.currentUser = null;
+  ADMIN_STATE.pendingLogin = null;
   localStorage.removeItem('nourii_admin_session');
   checkAuthSession();
   showAdminToast('تم تسجيل الخروج بنجاح.', 'info');
@@ -248,7 +273,18 @@ function updateUserProfileDisplay() {
   if (roleEl && ADMIN_STATE.currentUser) {
     roleEl.innerText = ADMIN_STATE.currentUser.role === 'admin' ? 'Super Admin' : 'Editor';
   }
+  applyRoleVisibility();
 }
+
+// Editors manage products only; the users tab is for admins
+function applyRoleVisibility() {
+  const isAdmin = ADMIN_STATE.currentUser && ADMIN_STATE.currentUser.role === 'admin';
+  const usersTabBtn = document.getElementById('tab-btn-users');
+  if (usersTabBtn) usersTabBtn.classList.toggle('hidden', !isAdmin);
+  if (!isAdmin && ADMIN_STATE.activeTab === 'users') switchTab('overview');
+}
+
+const PASSWORD_MIN_LENGTH = 8;
 
 // ========================================================
 // 2. FIRST-TIME PASSWORD SETUP (إنشاء كلمة مرور أول مرة)
@@ -268,40 +304,48 @@ function showFirstTimePasswordScreen(user) {
 
 function handleFirstTimePasswordSubmit(e) {
   e.preventDefault();
-  const username = document.getElementById('first-time-user-target').value;
   const newPass = document.getElementById('first-time-new-pass').value.trim();
   const confirmPass = document.getElementById('first-time-confirm-pass').value.trim();
-  const errorBox = document.getElementById('first-time-error-msg');
+  const pending = ADMIN_STATE.pendingLogin;
 
-  if (newPass.length < 4) {
-    showFirstTimeError('يجب أن لا تقل كلمة المرور عن 4 خانات.');
+  if (!pending) {
+    showFirstTimeError('انتهت الجلسة، يرجى تسجيل الدخول مرة أخرى.');
     return;
   }
-
+  if (newPass.length < PASSWORD_MIN_LENGTH) {
+    showFirstTimeError(`يجب أن لا تقل كلمة المرور عن ${PASSWORD_MIN_LENGTH} خانات.`);
+    return;
+  }
   if (newPass !== confirmPass) {
     showFirstTimeError('كلمتا المرور غير متطابقتين! يرجى إعادة التأكيد.');
     return;
   }
-
-  // تحديث كلمة المرور محلياً وإلغاء شرط أول دخول
-  const userIdx = ADMIN_STATE.users.findIndex(u => u.username.toLowerCase() === username.toLowerCase());
-  if (userIdx > -1) {
-    ADMIN_STATE.users[userIdx].password = newPass;
-    ADMIN_STATE.users[userIdx].mustChangePassword = false;
-    localStorage.setItem('nourii_admin_users', JSON.stringify(ADMIN_STATE.users));
-
-    // تحديث في Google Drive إذا كان متاحاً
-    if (ADMIN_STATE.settings.googleScriptUrl) {
-      updatePasswordInGoogleDrive(username, newPass);
-    }
-
-    showAdminToast('تم إنشاء كلمة المرور الخاصة بك بنجاح! 🎉', 'success');
-
-    // تسجيل الدخول التلقائي
-    completeUserLogin(ADMIN_STATE.users[userIdx]);
-  } else {
-    showFirstTimeError('حدث خطأ في العثور على الحساب.');
+  if (newPass === pending.password) {
+    showFirstTimeError('اختر كلمة مرور مختلفة عن كلمة المرور المؤقتة.');
+    return;
   }
+
+  // Temporarily act as this user so the request carries the login token
+  ADMIN_STATE.currentUser = { ...pending.user, token: pending.token };
+  driveRequest({
+    action: 'changePassword',
+    username: pending.user.username,
+    currentPassword: pending.password,
+    newPassword: newPass
+  })
+    .then(res => {
+      if (res.status === 'success') {
+        showAdminToast('تم إنشاء كلمة المرور الخاصة بك بنجاح! 🎉', 'success');
+        completeUserLogin({ ...pending.user, mustChangePassword: false }, res.token || pending.token);
+      } else {
+        ADMIN_STATE.currentUser = null;
+        showFirstTimeError(res.message || 'تعذر حفظ كلمة المرور.');
+      }
+    })
+    .catch(() => {
+      ADMIN_STATE.currentUser = null;
+      showFirstTimeError('تعذر الاتصال بـ Google Drive. حاول مرة أخرى.');
+    });
 }
 
 function showFirstTimeError(msg) {
@@ -337,58 +381,42 @@ function handleChangePasswordSubmit(e) {
   const newPass = document.getElementById('chg-new-pass').value.trim();
   const confirmPass = document.getElementById('chg-confirm-pass').value.trim();
   const errorBox = document.getElementById('chg-pass-error');
-
-  const username = ADMIN_STATE.currentUser.username;
-  const user = ADMIN_STATE.users.find(u => u.username.toLowerCase() === username.toLowerCase());
-
-  if (!user || user.password !== currentPass) {
+  const showError = msg => {
     if (errorBox) {
-      errorBox.innerText = 'كلمة المرور الحالية غير صحيحة!';
+      errorBox.innerText = msg;
       errorBox.classList.remove('hidden');
     }
+  };
+
+  if (newPass.length < PASSWORD_MIN_LENGTH) {
+    showError(`كلمة المرور الجديدة يجب أن لا تقل عن ${PASSWORD_MIN_LENGTH} خانات.`);
     return;
   }
-
-  if (newPass.length < 4) {
-    if (errorBox) {
-      errorBox.innerText = 'كلمة المرور الجديدة يجب أن لا تقل عن 4 خانات.';
-      errorBox.classList.remove('hidden');
-    }
-    return;
-  }
-
   if (newPass !== confirmPass) {
-    if (errorBox) {
-      errorBox.innerText = 'كلمتا المرور الجديدتان غير متطابقتين!';
-      errorBox.classList.remove('hidden');
-    }
+    showError('كلمتا المرور الجديدتان غير متطابقتين!');
     return;
   }
 
-  // تحديث كلمة المرور
-  user.password = newPass;
-  localStorage.setItem('nourii_admin_users', JSON.stringify(ADMIN_STATE.users));
-
-  if (ADMIN_STATE.settings.googleScriptUrl) {
-    updatePasswordInGoogleDrive(username, newPass);
-  }
-
-  closeChangePasswordModal();
-  showAdminToast('تم تغيير كلمة المرور بنجاح! 🔒', 'success');
-}
-
-function updatePasswordInGoogleDrive(username, newPassword) {
-  const url = ADMIN_STATE.settings.googleScriptUrl;
-  if (!url) return;
-
-  fetch(url, {
-    method: 'POST',
-    body: JSON.stringify({
-      action: 'changePassword',
-      username: username,
-      newPassword: newPassword
+  // The backend checks the current password before changing it
+  driveRequest({
+    action: 'changePassword',
+    username: ADMIN_STATE.currentUser.username,
+    currentPassword: currentPass,
+    newPassword: newPass
+  })
+    .then(res => {
+      if (res.status === 'success') {
+        if (res.token) {
+          ADMIN_STATE.currentUser.token = res.token;
+          localStorage.setItem('nourii_admin_session', JSON.stringify(ADMIN_STATE.currentUser));
+        }
+        closeChangePasswordModal();
+        showAdminToast('تم تغيير كلمة المرور بنجاح! 🔒', 'success');
+      } else {
+        showError(res.message || 'تعذر تغيير كلمة المرور.');
+      }
     })
-  }).catch(err => console.warn('Drive password update err:', err));
+    .catch(() => showError('تعذر الاتصال بـ Google Drive. حاول مرة أخرى.'));
 }
 
 // ========================================================
@@ -423,29 +451,19 @@ function handleEditUserFormSubmit(e) {
   const newPass = document.getElementById('edit-user-new-password').value.trim();
   const mustChange = document.getElementById('edit-user-must-change-pass').checked;
 
-  const idx = ADMIN_STATE.users.findIndex(u => u.username.toLowerCase() === username.toLowerCase());
-  if (idx > -1) {
-    ADMIN_STATE.users[idx].fullName = fullName;
-    ADMIN_STATE.users[idx].role = role;
-    ADMIN_STATE.users[idx].isActive = isActive;
-    ADMIN_STATE.users[idx].mustChangePassword = mustChange;
-
-    if (newPass) {
-      ADMIN_STATE.users[idx].password = newPass;
-    }
-
-    localStorage.setItem('nourii_admin_users', JSON.stringify(ADMIN_STATE.users));
-
-    // مزامنة التعديل في Google Drive إذا كان متاحاً
-    if (ADMIN_STATE.settings.googleScriptUrl) {
-      syncUserToGoogleDrive(ADMIN_STATE.users[idx]);
-    }
-
-    closeEditUserModal();
-    renderUsersTable();
-    updateStatCards();
-    showAdminToast(`تم تحديث بيانات المستخدم "${fullName}" بنجاح! ✨`, 'success');
+  if (newPass && newPass.length < PASSWORD_MIN_LENGTH) {
+    showAdminToast(`كلمة المرور يجب أن لا تقل عن ${PASSWORD_MIN_LENGTH} خانات.`, 'error');
+    return;
   }
+
+  const user = { username, fullName, role, isActive, mustChangePassword: mustChange };
+  if (newPass) user.password = newPass;
+
+  saveUserToGoogleDrive(user).then(ok => {
+    if (!ok) return;
+    closeEditUserModal();
+    showAdminToast(`تم تحديث بيانات المستخدم "${fullName}" بنجاح! ✨`, 'success');
+  });
 }
 
 // ========================================================
@@ -559,15 +577,15 @@ function renderProductsTable() {
     return `
       <tr>
         <td class="w-16">
-          <img src="${p.image}" alt="${p.nameAr}" class="w-12 h-12 rounded-xl object-cover border border-stone-200 dark:border-stone-700 bg-stone-100">
+          <img src="${escapeHtml(p.image)}" alt="${escapeHtml(p.nameAr)}" class="w-12 h-12 rounded-xl object-cover border border-stone-200 dark:border-stone-700 bg-stone-100">
         </td>
         <td>
-          <div class="font-bold text-sm text-stone-900 dark:text-stone-100">${p.nameAr}</div>
-          <div class="text-[11px] text-stone-400 font-mono">${p.nameEn || ''}</div>
+          <div class="font-bold text-sm text-stone-900 dark:text-stone-100">${escapeHtml(p.nameAr)}</div>
+          <div class="text-[11px] text-stone-400 font-mono">${escapeHtml(p.nameEn)}</div>
         </td>
         <td>
           <span class="px-2.5 py-1 rounded-full text-xs font-semibold bg-pink-50 dark:bg-pink-900/30 text-pink-700 dark:text-pink-300">
-            ${catName}
+            ${escapeHtml(catName)}
           </span>
         </td>
         <td>
@@ -577,7 +595,7 @@ function renderProductsTable() {
         <td>
           ${p.badgeAr ? `
             <span class="px-2 py-0.5 rounded text-[11px] font-bold bg-amber-50 text-amber-700 border border-amber-200">
-              ${p.badgeAr}
+              ${escapeHtml(p.badgeAr)}
             </span>
           ` : '<span class="text-xs text-stone-400">-</span>'}
         </td>
@@ -590,10 +608,10 @@ function renderProductsTable() {
         </td>
         <td class="text-center">
           <div class="flex items-center justify-center gap-2">
-            <button onclick="openEditProductModal('${p.id}')" class="p-2 rounded-lg bg-stone-100 hover:bg-stone-200 text-stone-700 dark:bg-stone-800 dark:hover:bg-stone-700 dark:text-stone-300 transition-colors" title="تعديل">
+            <button onclick="openEditProductModal('${escapeHtml(p.id)}')" class="p-2 rounded-lg bg-stone-100 hover:bg-stone-200 text-stone-700 dark:bg-stone-800 dark:hover:bg-stone-700 dark:text-stone-300 transition-colors" title="تعديل">
               <i class="fa-solid fa-pen-to-square text-xs"></i>
             </button>
-            <button onclick="deleteProduct('${p.id}')" class="p-2 rounded-lg bg-red-50 hover:bg-red-100 text-red-600 transition-colors" title="حذف">
+            <button onclick="deleteProduct('${escapeHtml(p.id)}')" class="p-2 rounded-lg bg-red-50 hover:bg-red-100 text-red-600 transition-colors" title="حذف">
               <i class="fa-solid fa-trash-can text-xs"></i>
             </button>
           </div>
@@ -731,16 +749,16 @@ function renderUsersTable() {
 
   tbody.innerHTML = ADMIN_STATE.users.map((u, i) => {
     const isSuperAdmin = u.username.toLowerCase() === 'admin';
-    const isSelf = ADMIN_STATE.currentUser && ADMIN_STATE.currentUser.username.toLowerCase() === u.username.toLowerCase();
+    const isSelfUser = ADMIN_STATE.currentUser && ADMIN_STATE.currentUser.username.toLowerCase() === u.username.toLowerCase();
 
     return `
       <tr>
         <td class="font-bold text-sm text-stone-900 dark:text-stone-100 flex items-center gap-2">
           <i class="fa-solid fa-user-circle text-stone-400 text-lg"></i>
-          <span>${u.username}</span>
-          ${isSelf ? '<span class="text-[10px] bg-pink-100 text-pink-700 px-1.5 py-0.5 rounded font-bold">أنت</span>' : ''}
+          <span>${escapeHtml(u.username)}</span>
+          ${isSelfUser ? '<span class="text-[10px] bg-pink-100 text-pink-700 px-1.5 py-0.5 rounded font-bold">أنت</span>' : ''}
         </td>
-        <td class="text-sm">${u.fullName}</td>
+        <td class="text-sm">${escapeHtml(u.fullName)}</td>
         <td>
           <span class="px-2.5 py-1 rounded-full text-xs font-bold ${
             u.role === 'admin' ? 'badge-role-admin' : 'badge-role-editor'
@@ -748,7 +766,7 @@ function renderUsersTable() {
             ${u.role === 'admin' ? 'مشرف رئيسي (Admin)' : 'محرر (Editor)'}
           </span>
         </td>
-        <td class="text-xs text-stone-400">${u.createdAt || '-'}</td>
+        <td class="text-xs text-stone-400">${escapeHtml(u.createdAt ? String(u.createdAt).slice(0, 10) : '-')}</td>
         <td>
           ${u.isActive !== false ? `
             <span class="text-xs font-bold text-emerald-600 flex items-center gap-1">
@@ -766,12 +784,12 @@ function renderUsersTable() {
         <td class="text-center">
           <div class="flex items-center justify-center gap-2">
             <!-- Edit User Button -->
-            <button onclick="openEditUserModal('${u.username}')" class="p-2 rounded-lg bg-stone-100 hover:bg-stone-200 text-stone-700 dark:bg-stone-800 dark:hover:bg-stone-700 dark:text-stone-300 transition-colors" title="تعديل المستخدم">
+            <button onclick="openEditUserModal('${escapeHtml(u.username)}')" class="p-2 rounded-lg bg-stone-100 hover:bg-stone-200 text-stone-700 dark:bg-stone-800 dark:hover:bg-stone-700 dark:text-stone-300 transition-colors" title="تعديل المستخدم">
               <i class="fa-solid fa-pen-to-square text-xs"></i>
             </button>
 
-            ${isSuperAdmin ? '' : `
-              <button onclick="deleteUser('${u.username}')" class="p-2 rounded-lg bg-red-50 hover:bg-red-100 text-red-600 transition-colors" title="حذف المستخدم">
+            ${isSuperAdmin || isSelfUser ? '' : `
+              <button onclick="deleteUser('${escapeHtml(u.username)}')" class="p-2 rounded-lg bg-red-50 hover:bg-red-100 text-red-600 transition-colors" title="حذف المستخدم">
                 <i class="fa-solid fa-trash-can text-xs"></i>
               </button>
             `}
@@ -808,188 +826,90 @@ function handleUserFormSubmit(e) {
     showAdminToast('اسم المستخدم مسجل بالفعل!', 'error');
     return;
   }
-
-  const newUser = {
-    username,
-    fullName,
-    password,
-    role,
-    createdAt: new Date().toLocaleDateString('ar-EG'),
-    isActive: true,
-    mustChangePassword: mustChange
-  };
-
-  ADMIN_STATE.users.push(newUser);
-  localStorage.setItem('nourii_admin_users', JSON.stringify(ADMIN_STATE.users));
-
-  // مزامنة المستخدم إلى Google Drive
-  if (ADMIN_STATE.settings.googleScriptUrl) {
-    syncUserToGoogleDrive(newUser);
+  if (!/^[a-z0-9._-]{3,30}$/.test(username)) {
+    showAdminToast('اسم المستخدم يجب أن يكون 3-30 حرفاً إنجليزياً أو أرقام بدون مسافات.', 'error');
+    return;
+  }
+  if (password && password.length < PASSWORD_MIN_LENGTH) {
+    showAdminToast(`كلمة المرور يجب أن لا تقل عن ${PASSWORD_MIN_LENGTH} خانات.`, 'error');
+    return;
   }
 
-  closeUserFormModal();
-  renderUsersTable();
-  updateStatCards();
-  showAdminToast(`تمت إضافة المستخدم "${fullName}" بنجاح! سيُطلب منه تعيين كلمة مروره الخاصة عند أول دخول. 🔐`, 'success');
+  const newUser = { username, fullName, password, role, isActive: true, mustChangePassword: mustChange };
+
+  saveUserToGoogleDrive(newUser).then(ok => {
+    if (!ok) return;
+    closeUserFormModal();
+    showAdminToast(`تمت إضافة المستخدم "${fullName}" بنجاح! سيُطلب منه تعيين كلمة مروره الخاصة عند أول دخول. 🔐`, 'success');
+  });
 }
 
 function deleteUser(username) {
-  if (confirm(`هل أنت متأكد من حذف المستخدم "${username}"؟`)) {
-    ADMIN_STATE.users = ADMIN_STATE.users.filter(u => u.username.toLowerCase() !== username.toLowerCase());
-    localStorage.setItem('nourii_admin_users', JSON.stringify(ADMIN_STATE.users));
+  if (!confirm(`هل أنت متأكد من حذف المستخدم "${username}"؟`)) return;
 
-    if (ADMIN_STATE.settings.googleScriptUrl) {
-      deleteUserFromGoogleDrive(username);
-    }
-
-    renderUsersTable();
-    updateStatCards();
-    showAdminToast('تم حذف المستخدم بنجاح.', 'info');
-  }
+  driveRequest({ action: 'deleteUser', username: username })
+    .then(data => {
+      if (data.status === 'success') {
+        showAdminToast(`تم حذف المستخدم "${username}" نهائياً من Google Drive! 🗑️`, 'info');
+        fetchLiveUsersFromGoogleDrive(false);
+      } else {
+        showAdminToast(`تعذر حذف المستخدم: ${data.message || 'خطأ'}`, 'error');
+      }
+    })
+    .catch(e => {
+      console.warn('Drive user delete err:', e);
+      showAdminToast('تعذر الاتصال بـ Google Drive لحذف المستخدم.', 'error');
+    });
 }
 
-function syncUserToGoogleDrive(user) {
-  const url = ADMIN_STATE.settings.googleScriptUrl;
-  if (!url) {
-    showAdminToast('تنبيه: تم حفظ المستخدم محلياً على هذا الجهاز فقط. Google Drive غير متصل بعد.', 'warning');
-    return;
-  }
-
-  fetch(url, {
-    method: 'POST',
-    body: JSON.stringify({ action: 'saveUser', user: user })
-  })
-  .then(res => res.json())
-  .then(data => {
-    if (data.status === 'success') {
-      showAdminToast(`تمت مزامنة المستخدم "${user.fullName || user.username}" بنجاح في Google Drive ليتمكن من الدخول من أي جهاز! ☁️✨`, 'success');
-    } else {
-      showAdminToast(`تنبيه: فشل الحفظ في Google Drive (${data.message || 'خطأ'}).`, 'warning');
-    }
-  })
-  .catch(e => {
-    console.warn('Drive user sync err:', e);
-    showAdminToast('تنبيه: تعذر الاتصال بـ Google Drive. تأكد من صحة الرابط ليعمل الحساب من الأجهزة الأخرى.', 'warning');
-  });
-}
-
-function deleteUserFromGoogleDrive(username) {
-  const url = ADMIN_STATE.settings.googleScriptUrl;
-  if (!url) return;
-
-  fetch(url, {
-    method: 'POST',
-    body: JSON.stringify({ action: 'deleteUser', username: username })
-  })
-  .then(res => res.json())
-  .then(data => {
-    if (data.status === 'success') {
-      showAdminToast(`تم حذف المستخدم "${username}" نهائياً من Google Drive! 🗑️`, 'info');
+// Users live only in Google Drive; resolves true when saved
+function saveUserToGoogleDrive(user) {
+  return driveRequest({ action: 'saveUser', user: user })
+    .then(data => {
+      if (data.status !== 'success') {
+        showAdminToast(`تعذر حفظ المستخدم: ${data.message || 'خطأ'}`, 'error');
+        return false;
+      }
+      if (data.tempPassword) {
+        // Shown once to the admin, who passes it to the new user
+        alert(`كلمة المرور المؤقتة للمستخدم "${user.username}":\n\n${data.tempPassword}\n\nأرسلها له، وسيُطلب منه تغييرها عند أول دخول.`);
+      }
       fetchLiveUsersFromGoogleDrive(false);
-    } else {
-      showAdminToast(`تنبيه: فشل الحذف من Google Drive (${data.message || 'خطأ'}).`, 'warning');
-    }
-  })
-  .catch(e => {
-    console.warn('Drive user delete err:', e);
-    showAdminToast('تنبيه: تعذر الاتصال بـ Google Drive لحذف المستخدم.', 'warning');
-  });
+      return true;
+    })
+    .catch(e => {
+      console.warn('Drive user sync err:', e);
+      showAdminToast('تعذر الاتصال بـ Google Drive. لم يتم حفظ المستخدم.', 'error');
+      return false;
+    });
 }
 
 function fetchLiveUsersFromGoogleDrive(notify = false) {
-  const url = (typeof NOURII_CONFIG !== 'undefined' && NOURII_CONFIG.googleScriptUrl) 
-    || localStorage.getItem('nourii_google_script_url');
-  if (!url) {
+  if (!ADMIN_STATE.settings.googleScriptUrl) {
     if (notify) showAdminToast('يرجى ربط رابط Google Apps Script أولاً.', 'error');
     return;
   }
+  if (!ADMIN_STATE.currentUser || ADMIN_STATE.currentUser.role !== 'admin') return;
 
   if (notify) showAdminToast('جاري سحب وتحديث قائمة المستخدمين من Google Drive...', 'info');
 
-  fetch(`${url}?action=getUsers`)
-    .then(res => {
-      if (!res.ok) throw new Error(`HTTP error ${res.status}`);
-      return res.json();
-    })
+  driveRequest({ action: 'getUsers' })
     .then(res => {
       if (res.status === 'success' && Array.isArray(res.data)) {
-        // قاعدة بيانات Google Drive هي المصدر الرئيسي الموثوق (Source of Truth)
-        // أي مستخدم يُحذف من Google Drive يُحذف فوراً من المتجر
-        const freshUsers = res.data.map(remoteUser => {
-          const localMatch = ADMIN_STATE.users.find(u => u.username.toLowerCase() === remoteUser.username.toLowerCase());
-          return {
-            ...remoteUser,
-            password: (localMatch && localMatch.password) ? localMatch.password : remoteUser.password
-          };
-        });
-
-        // التأكد من بقاء حساب المشرف admin متاحاً دائماً
-        if (!freshUsers.some(u => u.username.toLowerCase() === 'admin')) {
-          freshUsers.unshift({
-            username: 'admin',
-            password: 'nourii2026',
-            fullName: 'مدير النظام (Super Admin)',
-            role: 'admin',
-            createdAt: new Date().toLocaleDateString('ar-EG'),
-            isActive: true,
-            mustChangePassword: false
-          });
-        }
-
-        ADMIN_STATE.users = freshUsers;
-        localStorage.setItem('nourii_admin_users', JSON.stringify(ADMIN_STATE.users));
-        validateCurrentSessionWithDrive(res.data);
+        // قاعدة بيانات Google Drive هي المصدر الوحيد للمستخدمين
+        ADMIN_STATE.users = res.data.map(stripPassword);
+        saveUsersToStorage();
         renderUsersTable();
         updateStatCards();
-        if (notify) showAdminToast(`تمت مزامنة المستخدمين بنجاح والتطابق التام مع Google Drive! 👥`, 'success');
+        if (notify) showAdminToast('تمت مزامنة المستخدمين بنجاح مع Google Drive! 👥', 'success');
       } else if (notify) {
-        showAdminToast('تم الاتصال بـ Drive ولكن لا يوجد مستخدمون إضافيون.', 'info');
+        showAdminToast(res.message || 'تعذر جلب المستخدمين.', 'error');
       }
     })
     .catch(err => {
       console.warn('Fetch live users error:', err);
       if (notify) showAdminToast('تعذر الاتصال بـ Google Drive لجلب المستخدمين. تأكد من صحة الرابط.', 'error');
     });
-}
-
-function pushAllUsersToGoogleDrive() {
-  const url = ADMIN_STATE.settings.googleScriptUrl;
-  if (!url) {
-    showAdminToast('يرجى ربط رابط Google Apps Script أولاً', 'error');
-    return;
-  }
-
-  showAdminToast('جاري تصدير ومزامنة جميع المستخدمين إلى Google Drive...', 'info');
-
-  const usersToPush = ADMIN_STATE.users.filter(u => u.username.toLowerCase() !== 'admin');
-  if (usersToPush.length === 0) {
-    showAdminToast('لا يوجد مستخدمون إضافيون للتصدير (المشرف admin مدمج تلقائياً).', 'info');
-    return;
-  }
-
-  let count = 0;
-  const pushNext = (idx) => {
-    if (idx >= usersToPush.length) {
-      if (count > 0) {
-        showAdminToast(`تم تصدير وحفظ ${count} مستخدم بنجاح في Google Drive ليتمكنوا من الدخول من أي جهاز! ☁️🎉`, 'success');
-        fetchLiveUsersFromGoogleDrive(false);
-      } else {
-        showAdminToast('تعذر تصدير المستخدمين. تأكد من أن الرابط سليم ومضبوط على Anyone.', 'error');
-      }
-      return;
-    }
-    fetch(url, {
-      method: 'POST',
-      body: JSON.stringify({ action: 'saveUser', user: usersToPush[idx] })
-    })
-    .then(res => res.json())
-    .then(d => {
-      if (d.status === 'success') count++;
-      pushNext(idx + 1);
-    })
-    .catch(() => pushNext(idx + 1));
-  };
-  pushNext(0);
 }
 
 // ========================================================
@@ -1092,14 +1012,10 @@ function pushToGoogleDrive() {
   const prods = ADMIN_STATE.products;
 
   // المحاولة الأولى: تصدير سريع دفعة واحدة Bulk Import
-  fetch(url, {
-    method: 'POST',
-    body: JSON.stringify({
-      action: 'bulkImportProducts',
-      products: prods
-    })
+  driveRequest({
+    action: 'bulkImportProducts',
+    products: prods
   })
-  .then(res => res.json())
   .then(d => {
     if (d.status === 'success') {
       showAdminToast(`تم تصدير وحفظ كافة الـ ${prods.length} منتج بنجاح في Google Sheet! 📤✨`, 'success');
@@ -1115,19 +1031,15 @@ function pushToGoogleDrive() {
         if (successCount > 0) {
           showAdminToast(`تم تصدير ${successCount} منتج بنجاح إلى Google Drive! 📤`, 'success');
         } else {
-          showAdminToast('تعذر التصدير. تأكد من ضبط إعداد النشر في Google Apps Script على Anyone (أي شخص).', 'error');
+          showAdminToast('تعذر التصدير. تأكد من تسجيل الدخول ومن ضبط إعداد النشر في Google Apps Script على Anyone (أي شخص).', 'error');
         }
         return;
       }
 
-      fetch(url, {
-        method: 'POST',
-        body: JSON.stringify({
-          action: 'saveProduct',
-          product: prods[index]
-        })
+      driveRequest({
+        action: 'saveProduct',
+        product: prods[index]
       })
-      .then(res => res.json())
       .then(d => {
         if (d.status === 'success') successCount++;
         pushItem(index + 1);
@@ -1139,23 +1051,29 @@ function pushToGoogleDrive() {
 }
 
 function syncProductToGoogleDrive(product) {
-  const url = ADMIN_STATE.settings.googleScriptUrl;
-  if (!url) return;
+  if (!ADMIN_STATE.settings.googleScriptUrl) return;
 
-  fetch(url, {
-    method: 'POST',
-    body: JSON.stringify({ action: 'saveProduct', product: product })
-  }).catch(e => console.warn('Drive sync background err:', e));
+  driveRequest({ action: 'saveProduct', product: product })
+    .then(d => {
+      if (d.status !== 'success') showAdminToast(`لم يُحفظ المنتج في Google Drive: ${d.message || 'خطأ'}`, 'error');
+    })
+    .catch(e => {
+      console.warn('Drive sync background err:', e);
+      showAdminToast('تعذر حفظ المنتج في Google Drive (مشكلة اتصال).', 'error');
+    });
 }
 
 function deleteProductFromGoogleDrive(id) {
-  const url = ADMIN_STATE.settings.googleScriptUrl;
-  if (!url) return;
+  if (!ADMIN_STATE.settings.googleScriptUrl) return;
 
-  fetch(url, {
-    method: 'POST',
-    body: JSON.stringify({ action: 'deleteProduct', id: id })
-  }).catch(e => console.warn('Drive delete background err:', e));
+  driveRequest({ action: 'deleteProduct', id: id })
+    .then(d => {
+      if (d.status !== 'success') showAdminToast(`لم يُحذف المنتج من Google Drive: ${d.message || 'خطأ'}`, 'error');
+    })
+    .catch(e => {
+      console.warn('Drive delete background err:', e);
+      showAdminToast('تعذر حذف المنتج من Google Drive (مشكلة اتصال).', 'error');
+    });
 }
 
 function handleImageFileUpload(e) {
@@ -1174,16 +1092,12 @@ function handleImageFileUpload(e) {
   reader.onload = function(evt) {
     const base64Data = evt.target.result;
 
-    fetch(url, {
-      method: 'POST',
-      body: JSON.stringify({
-        action: 'uploadImage',
-        base64Data: base64Data,
-        filename: file.name,
-        mimeType: file.type
-      })
+    driveRequest({
+      action: 'uploadImage',
+      base64Data: base64Data,
+      filename: file.name,
+      mimeType: file.type
     })
-    .then(res => res.json())
     .then(res => {
       if (res.status === 'success' && res.imageUrl) {
         document.getElementById('prod-image-url').value = res.imageUrl;

@@ -44,11 +44,21 @@ copies the site uses live in `assets/images/`.
 
 - **Google Sheets (via the Apps Script URL in `config.js`) is the source of truth** for
   products and users. `products.js` is only a fallback copy.
-- **Login goes through Google Drive only.** The browser's cached user list is used only if
-  no Apps Script URL is set. Deleted or disabled users are logged out the next time the
-  admin page loads or the users tab opens.
-- If the `admin` row is removed from the `Users` sheet, or Drive is unreachable, nobody can
-  log in. Keep that row.
+- **Login goes through Google Drive only** and returns a signed session token (12 hours,
+  HMAC secret in Script Properties `AUTH_SECRET`). Every write action (`saveProduct`,
+  `deleteProduct`, `uploadImage`: admin or editor; `saveUser`, `deleteUser`, `getUsers`,
+  `bulkImportProducts`: admin only) must send `token`; the backend re-reads the user each time,
+  so deleted/disabled users and changed passwords end sessions at once. Code `unauthorized` =
+  no valid session (admin page logs out); `forbidden` = role not allowed.
+- Passwords in the `Users` sheet are salted SHA-256 hashes (`sha256$salt$hash`). A plain
+  password typed into the sheet by the owner still works once and is hashed on that login.
+  Minimum length 8; 5 wrong logins lock that username for 15 minutes. Forgot the admin
+  password: run `resetAdminPassword()` in the Apps Script editor (prints a temp password).
+- The admin page never stores passwords in the browser. If the `admin` row is removed from
+  the `Users` sheet, or Drive is unreachable, nobody can log in. Keep that row.
+- Speed: the backend caches `getProducts` for 5 minutes (cleared on product saves and by the
+  `onEdit` trigger when the sheet is edited by hand); the storefront reuses a product list
+  fetched in the last 5 minutes when moving between pages.
 - Script and style tags in every storefront page and `admin.html` carry a version
   query string for cache busting. Bump it when you change those files.
 - Every header menu item is its own page (home, `shop.html`, `shop.html?cat=<id>` per
@@ -60,6 +70,8 @@ copies the site uses live in `assets/images/`.
 ## Rules for agents
 
 - Never put passwords, GitHub tokens or other secrets in this file or in committed code.
+- After changing `google_apps_script_backend.js`, the owner must paste it into Apps Script and
+  redeploy (Manage deployments → Edit → New version keeps the same URL).
 - Test changes against the live Apps Script URL before pushing; the site updates as soon as
   `main` is pushed.
 - Keep the UI Arabic-first and RTL.
@@ -85,3 +97,7 @@ copies the site uses live in `assets/images/`.
 - 2026-11-01 (Claude Code): Split the storefront into pages: each menu item now opens its own
   page (`shop.html` for all products and per category, `giveaways.html`); home keeps hero,
   categories, best sellers, reviews and FAQs.
+- 2026-11-01 (Claude Code): Security fix: backend write actions now require a signed login
+  token and the right role, passwords are hashed, login lockout added, user list no longer
+  public, default password removed from the site/docs. Added backend + storefront product
+  caching. Owner must redeploy the Apps Script for the backend part to take effect.

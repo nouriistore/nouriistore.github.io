@@ -46,7 +46,7 @@
           <label class="block text-xs font-bold mb-1.5 text-stone-700 dark:text-stone-300">اسم المستخدم (Username)</label>
           <div class="relative">
             <i class="fa-solid fa-user absolute top-1/2 -translate-y-1/2 inset-inline-start-3.5 text-stone-400 text-xs"></i>
-            <input type="text" id="login-username" required placeholder="admin" 
+            <input type="text" id="login-username" required placeholder="اسم المستخدم" 
               class="w-full ps-10 pe-4 py-3 rounded-xl border border-stone-200 dark:border-stone-700 bg-stone-50 dark:bg-stone-900 text-sm focus:ring-2 focus:ring-pink-500 focus:outline-none">
           </div>
         </div>
@@ -72,13 +72,6 @@
         </button>
       </form>
 
-      <div class="mt-6 pt-5 border-t border-stone-100 dark:border-stone-800/80 text-center">
-        <p class="text-[11px] text-stone-400">
-          حساب المشرف التجريبي الافتراضي: <br>
-          المستخدم: <strong class="text-stone-600 dark:text-stone-200">admin</strong> | كلمة المرور: <strong class="text-stone-600 dark:text-stone-200">nourii2026</strong>
-        </p>
-      </div>
-
     </div>
   </div>
 
@@ -103,7 +96,7 @@
           <label class="block text-xs font-bold mb-1.5 text-stone-700 dark:text-stone-300">كلمة المرور الجديدة *</label>
           <div class="relative">
             <i class="fa-solid fa-lock absolute top-1/2 -translate-y-1/2 inset-inline-start-3.5 text-stone-400 text-xs"></i>
-            <input type="password" id="first-time-new-pass" required minlength="4" placeholder="••••••••" 
+            <input type="password" id="first-time-new-pass" required minlength="8" placeholder="••••••••" 
               class="w-full ps-10 pe-10 py-3 rounded-xl border border-stone-200 dark:border-stone-700 bg-stone-50 dark:bg-stone-900 text-sm focus:ring-2 focus:ring-pink-500 focus:outline-none">
             <button type="button" onclick="togglePasswordVisibility('first-time-new-pass')" class="absolute top-1/2 -translate-y-1/2 inset-inline-end-3.5 text-stone-400 hover:text-stone-600">
               <i class="fa-solid fa-eye text-xs"></i>
@@ -115,7 +108,7 @@
           <label class="block text-xs font-bold mb-1.5 text-stone-700 dark:text-stone-300">تأكيد كلمة المرور الجديدة *</label>
           <div class="relative">
             <i class="fa-solid fa-check-double absolute top-1/2 -translate-y-1/2 inset-inline-start-3.5 text-stone-400 text-xs"></i>
-            <input type="password" id="first-time-confirm-pass" required minlength="4" placeholder="••••••••" 
+            <input type="password" id="first-time-confirm-pass" required minlength="8" placeholder="••••••••" 
               class="w-full ps-10 pe-10 py-3 rounded-xl border border-stone-200 dark:border-stone-700 bg-stone-50 dark:bg-stone-900 text-sm focus:ring-2 focus:ring-pink-500 focus:outline-none">
             <button type="button" onclick="togglePasswordVisibility('first-time-confirm-pass')" class="absolute top-1/2 -translate-y-1/2 inset-inline-end-3.5 text-stone-400 hover:text-stone-600">
               <i class="fa-solid fa-eye text-xs"></i>
@@ -392,10 +385,6 @@
                 <i class="fa-solid fa-arrows-rotate text-blue-500"></i>
                 <span>تحديث المستخدمين من Drive</span>
               </button>
-              <button onclick="pushAllUsersToGoogleDrive()" class="py-2.5 px-4 rounded-xl border border-stone-300 dark:border-stone-700 hover:bg-stone-100 dark:hover:bg-stone-800 text-stone-700 dark:text-stone-200 font-bold text-xs flex items-center gap-2 shadow-sm transition-all" title="رفع كافة المستخدمين المحليين إلى Google Drive">
-                <i class="fa-solid fa-cloud-arrow-up text-amber-500"></i>
-                <span>مزامنة المستخدمين مع Drive</span>
-              </button>
               <button onclick="openAddUserModal()" class="py-2.5 px-5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs flex items-center gap-2 shadow-sm transition-all">
                 <i class="fa-solid fa-user-plus"></i>
                 <span>إضافة مستخدم جديد</span>
@@ -639,8 +628,8 @@
         </div>
 
         <div>
-          <label class="block text-xs font-bold mb-1">كلمة المرور (Password) *</label>
-          <input type="password" id="user-password" required placeholder="••••••••" 
+          <label class="block text-xs font-bold mb-1">كلمة المرور (Password)</label>
+          <input type="password" id="user-password" minlength="8" placeholder="اتركها فارغة لإنشاء كلمة مرور مؤقتة تلقائياً" 
             class="w-full px-3.5 py-2.5 rounded-xl border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-900 text-xs focus:ring-2 focus:ring-blue-500 focus:outline-none">
         </div>
 
@@ -750,13 +739,13 @@
 
         <div>
           <label class="block text-xs font-bold mb-1">كلمة المرور الجديدة *</label>
-          <input type="password" id="chg-new-pass" required minlength="4" placeholder="••••••••" 
+          <input type="password" id="chg-new-pass" required minlength="8" placeholder="••••••••" 
             class="w-full px-3.5 py-2.5 rounded-xl border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-900 text-xs focus:ring-2 focus:ring-pink-500 focus:outline-none">
         </div>
 
         <div>
           <label class="block text-xs font-bold mb-1">تأكيد كلمة المرور الجديدة *</label>
-          <input type="password" id="chg-confirm-pass" required minlength="4" placeholder="••••••••" 
+          <input type="password" id="chg-confirm-pass" required minlength="8" placeholder="••••••••" 
             class="w-full px-3.5 py-2.5 rounded-xl border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-900 text-xs focus:ring-2 focus:ring-pink-500 focus:outline-none">
         </div>
 
@@ -774,8 +763,8 @@
   <div id="admin-toast-container" class="fixed top-6 inset-inline-end-6 z-50 flex flex-col gap-2.5 pointer-events-none"></div>
 
   <!-- Scripts -->
-  <script src="config.js?v=20261009b"></script>
-  <script src="products.js?v=20261009b"></script>
-  <script src="admin.js?v=20261009b"></script>
+  <script src="config.js?v=20261101c"></script>
+  <script src="products.js?v=20261101c"></script>
+  <script src="admin.js?v=20261101c"></script>
 </body>
 </html>

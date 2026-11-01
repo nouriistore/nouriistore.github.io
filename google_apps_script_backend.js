@@ -663,14 +663,16 @@ function seedAllWebsiteData() {
 
   // 3. ورقة المستخدمين Users
   let usersSheet = ss.getSheetByName("Users");
+  let adminTempPassword = "";
   if (!usersSheet) {
     usersSheet = ss.insertSheet("Users");
     usersSheet.appendRow([
       "username", "password", "fullName", "role", "createdAt", "isActive", "mustChangePassword"
     ]);
-    // إضافة حساب المشرف الافتراضي
+    // حساب المشرف الافتراضي بكلمة مرور مؤقتة عشوائية (يُطلب تغييرها عند أول دخول)
+    adminTempPassword = generateTempPassword_();
     usersSheet.appendRow([
-      "admin", "nourii2026", "مدير النظام (Admin)", "admin", new Date().toISOString(), true, false
+      "admin", hashPassword_(adminTempPassword), "مدير النظام (Admin)", "admin", new Date().toISOString(), true, true
     ]);
     usersSheet.setFrozenRows(1);
   }
@@ -680,17 +682,226 @@ function seedAllWebsiteData() {
   if (!ordersSheet) {
     ordersSheet = ss.insertSheet("Orders");
     ordersSheet.appendRow([
-      "orderId", "customerName", "phone", "city", "address", 
+      "orderId", "customerName", "phone", "city", "address",
       "total", "items", "notes", "createdAt"
     ]);
     ordersSheet.setFrozenRows(1);
   }
 
-  return "تم تهيئة وتعبئة قاعدة بيانات المتجر بنجاح! تم إدراج " + INITIAL_PRODUCTS_SEED.length + " منتج و " + INITIAL_CATEGORIES_SEED.length + " أقسام.";
+  clearProductsCache_();
+  return "تم تهيئة وتعبئة قاعدة بيانات المتجر بنجاح! تم إدراج " + INITIAL_PRODUCTS_SEED.length + " منتج و " + INITIAL_CATEGORIES_SEED.length + " أقسام." +
+    (adminTempPassword ? " كلمة المرور المؤقتة لحساب admin: " + adminTempPassword : "");
 }
 
 // =========================================================================
-// معالجة طلبات GET (جلب المنتجات أو الأقسام أو المستخدمين كـ API رئيسي)
+// أداة استرجاع: شغّلها يدوياً من محرر Apps Script إذا نسيت كلمة مرور admin
+// تطبع كلمة مرور مؤقتة جديدة في السجل (Execution log) ويُطلب تغييرها عند الدخول
+// =========================================================================
+function resetAdminPassword() {
+  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("Users");
+  const data = sheet.getDataRange().getValues();
+  const temp = generateTempPassword_();
+  for (let i = 1; i < data.length; i++) {
+    if (String(data[i][0]).trim().toLowerCase() === "admin") {
+      sheet.getRange(i + 1, 2).setValue(hashPassword_(temp));
+      sheet.getRange(i + 1, 6).setValue(true);
+      sheet.getRange(i + 1, 7).setValue(true);
+      CacheService.getScriptCache().remove("login_fail_admin");
+      Logger.log("كلمة المرور المؤقتة الجديدة لحساب admin: " + temp);
+      return temp;
+    }
+  }
+  sheet.appendRow(["admin", hashPassword_(temp), "مدير النظام (Admin)", "admin", new Date().toISOString(), true, true]);
+  Logger.log("تم إنشاء حساب admin بكلمة مرور مؤقتة: " + temp);
+  return temp;
+}
+
+// =========================================================================
+// الأمان: كلمات مرور مشفرة (hash) + جلسات موقعة (token) + صلاحيات
+// =========================================================================
+const SESSION_HOURS = 12;
+const PASSWORD_MIN_LENGTH = 8;
+const HASH_ROUNDS = 300;
+const MAX_LOGIN_FAILURES = 5;
+const LOGIN_LOCK_SECONDS = 15 * 60;
+
+// code "unauthorized": no valid session (the admin page logs out)
+// code "forbidden": valid session, but the role may not do this
+function AuthError_(message, code) {
+  this.message = message;
+  this.code = code || "unauthorized";
+}
+
+function getAuthSecret_() {
+  const props = PropertiesService.getScriptProperties();
+  let secret = props.getProperty("AUTH_SECRET");
+  if (!secret) {
+    secret = Utilities.getUuid() + Utilities.getUuid();
+    props.setProperty("AUTH_SECRET", secret);
+  }
+  return secret;
+}
+
+function bytesToHex_(bytes) {
+  return bytes.map(function (b) { return ("0" + (b & 0xff).toString(16)).slice(-2); }).join("");
+}
+
+function generateTempPassword_() {
+  return Utilities.getUuid().replace(/-/g, "").slice(0, 10);
+}
+
+// Stored format: sha256$<salt>$<hex digest>
+function hashPassword_(password, salt) {
+  salt = salt || Utilities.getUuid().replace(/-/g, "");
+  let digest = salt + ":" + password;
+  for (let i = 0; i < HASH_ROUNDS; i++) {
+    digest = bytesToHex_(Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, digest, Utilities.Charset.UTF_8));
+  }
+  return "sha256$" + salt + "$" + digest;
+}
+
+function safeEquals_(a, b) {
+  a = String(a); b = String(b);
+  if (a.length !== b.length) return false;
+  let diff = 0;
+  for (let i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  return diff === 0;
+}
+
+// Passwords typed straight into the sheet (plain text) still work once, and are hashed on that login
+function checkPassword_(stored, password) {
+  stored = String(stored || "");
+  if (stored.indexOf("sha256$") === 0) {
+    const salt = stored.split("$")[1];
+    return { ok: safeEquals_(hashPassword_(password, salt), stored), legacy: false };
+  }
+  return { ok: stored !== "" && safeEquals_(stored.trim(), password), legacy: true };
+}
+
+function findUserRow_(sheet, username) {
+  const data = sheet.getDataRange().getValues();
+  const wanted = String(username || "").trim().toLowerCase();
+  for (let i = 1; i < data.length; i++) {
+    if (String(data[i][0]).trim().toLowerCase() === wanted && wanted) {
+      return { rowNumber: i + 1, row: data[i] };
+    }
+  }
+  return null;
+}
+
+function isTrue_(value) {
+  return value === true || String(value).toUpperCase() === "TRUE";
+}
+
+// A short fingerprint of the stored password: changing the password ends older sessions
+function passwordVersion_(storedPassword) {
+  return bytesToHex_(Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, String(storedPassword), Utilities.Charset.UTF_8)).slice(0, 12);
+}
+
+function createToken_(username, storedPassword) {
+  const payload = Utilities.base64EncodeWebSafe(JSON.stringify({
+    u: String(username).toLowerCase(),
+    exp: Date.now() + SESSION_HOURS * 3600 * 1000,
+    pv: passwordVersion_(storedPassword)
+  }), Utilities.Charset.UTF_8);
+  const sig = Utilities.base64EncodeWebSafe(Utilities.computeHmacSha256Signature(payload, getAuthSecret_()));
+  return payload + "." + sig;
+}
+
+// Checks the token and re-reads the user from the sheet, so deleted / disabled users
+// and changed roles take effect immediately. Throws AuthError_ when not allowed.
+function requireAuth_(ss, body, allowedRoles, options) {
+  options = options || {};
+  const token = String(body.token || "");
+  const parts = token.split(".");
+  if (parts.length !== 2) throw new AuthError_("يجب تسجيل الدخول أولاً");
+
+  const expectedSig = Utilities.base64EncodeWebSafe(Utilities.computeHmacSha256Signature(parts[0], getAuthSecret_()));
+  if (!safeEquals_(expectedSig, parts[1])) throw new AuthError_("جلسة غير صالحة، يرجى تسجيل الدخول مجدداً");
+
+  let payload;
+  try {
+    payload = JSON.parse(Utilities.newBlob(Utilities.base64DecodeWebSafe(parts[0])).getDataAsString());
+  } catch (err) {
+    throw new AuthError_("جلسة غير صالحة، يرجى تسجيل الدخول مجدداً");
+  }
+  if (!payload.exp || Date.now() > payload.exp) throw new AuthError_("انتهت الجلسة، يرجى تسجيل الدخول مجدداً");
+
+  const found = findUserRow_(ss.getSheetByName("Users"), payload.u);
+  if (!found) throw new AuthError_("هذا الحساب لم يعد موجوداً");
+  const row = found.row;
+  if (!isTrue_(row[5])) throw new AuthError_("هذا الحساب معطل حالياً من قِبل الإدارة");
+  if (payload.pv !== passwordVersion_(row[1])) throw new AuthError_("تم تغيير كلمة المرور، يرجى تسجيل الدخول مجدداً");
+
+  const user = {
+    username: String(row[0]),
+    fullName: String(row[2] || ""),
+    role: String(row[3] || "editor"),
+    mustChangePassword: isTrue_(row[6])
+  };
+  // Until a temporary password is replaced, the session can only be used to change it
+  if (user.mustChangePassword && !options.allowPasswordChangeOnly) {
+    throw new AuthError_("يجب تعيين كلمة مرور جديدة أولاً");
+  }
+  if (allowedRoles && allowedRoles.indexOf(user.role) === -1) {
+    throw new AuthError_("ليس لديك صلاحية لتنفيذ هذا الإجراء", "forbidden");
+  }
+  return { user: user, rowNumber: found.rowNumber };
+}
+
+function publicUser_(row) {
+  return {
+    username: row[0],
+    fullName: row[2],
+    role: row[3],
+    createdAt: row[4],
+    isActive: isTrue_(row[5]),
+    mustChangePassword: isTrue_(row[6])
+  };
+}
+
+// =========================================================================
+// كاش المنتجات: يقلل وقت الاستجابة والضغط على Google عند زيادة الزوار
+// =========================================================================
+const PRODUCTS_CACHE_KEY = "products_json_v1";
+const PRODUCTS_CACHE_SECONDS = 300;
+
+function clearProductsCache_() {
+  CacheService.getScriptCache().remove(PRODUCTS_CACHE_KEY);
+}
+
+// Simple trigger: editing the sheet by hand refreshes the store within seconds
+function onEdit(e) {
+  clearProductsCache_();
+}
+
+function readProducts_(ss) {
+  const sheet = ss.getSheetByName("Products");
+  if (!sheet) return null;
+  const data = sheet.getDataRange().getValues();
+  const products = [];
+  if (data.length <= 1) return products;
+
+  const headers = data[0];
+  for (let i = 1; i < data.length; i++) {
+    const row = data[i];
+    if (!row[0]) continue; // تخطي الفارغ
+    const item = {};
+    for (let j = 0; j < headers.length; j++) {
+      item[headers[j]] = row[j];
+    }
+    item.price = Number(item.price) || 0;
+    item.originalPrice = Number(item.originalPrice) || 0;
+    item.rating = Number(item.rating) || 5.0;
+    item.reviewsCount = Number(item.reviewsCount) || 1;
+    item.isCustomizable = isTrue_(item.isCustomizable);
+    products.push(item);
+  }
+  return products;
+}
+
+// =========================================================================
+// معالجة طلبات GET (بيانات عامة للمتجر فقط: المنتجات والأقسام)
 // =========================================================================
 function doGet(e) {
   const action = (e && e.parameter && e.parameter.action) ? e.parameter.action : "getProducts";
@@ -707,33 +918,20 @@ function doGet(e) {
       });
     }
 
-    // جلب المنتجات لصفحة المتجر الرئيسية (Main Source)
+    // جلب المنتجات لصفحة المتجر الرئيسية (Main Source) — من الكاش إن وُجد
     if (action === "getProducts") {
-      const sheet = ss.getSheetByName("Products");
-      if (!sheet) return createResponse({ status: "error", message: "Products sheet not found" });
-
-      const data = sheet.getDataRange().getValues();
-      if (data.length <= 1) return createResponse({ status: "success", data: [] });
-
-      const headers = data[0];
-      const products = [];
-
-      for (let i = 1; i < data.length; i++) {
-        const row = data[i];
-        if (!row[0]) continue; // تخطي الفارغ
-        const item = {};
-        for (let j = 0; j < headers.length; j++) {
-          item[headers[j]] = row[j];
-        }
-        item.price = Number(item.price) || 0;
-        item.originalPrice = Number(item.originalPrice) || 0;
-        item.rating = Number(item.rating) || 5.0;
-        item.reviewsCount = Number(item.reviewsCount) || 1;
-        item.isCustomizable = item.isCustomizable === true || item.isCustomizable === "true" || item.isCustomizable === "TRUE";
-        products.push(item);
+      const cache = CacheService.getScriptCache();
+      const cached = cache.get(PRODUCTS_CACHE_KEY);
+      if (cached) {
+        return ContentService.createTextOutput(cached).setMimeType(ContentService.MimeType.JSON);
       }
 
-      return createResponse({ status: "success", count: products.length, data: products, source: "Google Drive Live" });
+      const products = readProducts_(ss);
+      if (products === null) return createResponse({ status: "error", message: "Products sheet not found" });
+
+      const json = JSON.stringify({ status: "success", count: products.length, data: products, source: "Google Drive Live" });
+      if (json.length < 95000) cache.put(PRODUCTS_CACHE_KEY, json, PRODUCTS_CACHE_SECONDS);
+      return ContentService.createTextOutput(json).setMimeType(ContentService.MimeType.JSON);
     }
 
     // جلب الأقسام
@@ -760,28 +958,9 @@ function doGet(e) {
       return createResponse({ status: "success", count: categories.length, data: categories });
     }
 
-    // جلب المستخدمين للوحة الإدارة
+    // قائمة المستخدمين لم تعد عامة: تُطلب عبر POST مع جلسة مشرف
     if (action === "getUsers") {
-      const sheet = ss.getSheetByName("Users");
-      if (!sheet) return createResponse({ status: "error", message: "Users sheet not found" });
-
-      const data = sheet.getDataRange().getValues();
-      const users = [];
-
-      for (let i = 1; i < data.length; i++) {
-        const row = data[i];
-        if (!row[0]) continue;
-        users.push({
-          username: row[0],
-          fullName: row[2],
-          role: row[3],
-          createdAt: row[4],
-          isActive: row[5] === true || String(row[5]).toUpperCase() === "TRUE",
-          mustChangePassword: row[6] === true || String(row[6]).toUpperCase() === "TRUE"
-        });
-      }
-
-      return createResponse({ status: "success", count: users.length, data: users });
+      return createResponse({ status: "error", code: "unauthorized", message: "يجب تسجيل الدخول كمشرف" });
     }
 
     return createResponse({ status: "error", message: "Unknown action" });
@@ -792,7 +971,7 @@ function doGet(e) {
 }
 
 // =========================================================================
-// معالجة طلبات POST (تسجيل الدخول، تغيير كلمات المرور، حفظ المنتجات مفرداً أو بالجملة)
+// معالجة طلبات POST (تسجيل الدخول + كل التعديلات، وكلها تتطلب جلسة صالحة)
 // =========================================================================
 function doPost(e) {
   try {
@@ -800,131 +979,174 @@ function doPost(e) {
     if (e && e.postData && e.postData.contents) {
       body = JSON.parse(e.postData.contents);
     }
-    const action = body.action || "saveProduct";
+    const action = body.action || "";
     const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const usersSheet = ss.getSheetByName("Users");
+    if (!usersSheet) return createResponse({ status: "error", message: "Users sheet not found" });
 
-    // 1. تسجيل الدخول والتحقق من المستخدم
+    // 1. تسجيل الدخول (مع إيقاف مؤقت بعد محاولات خاطئة متكررة)
     if (action === "login") {
-      const sheet = ss.getSheetByName("Users");
-      if (!sheet) return createResponse({ status: "error", message: "Users sheet not found" });
-
-      const data = sheet.getDataRange().getValues();
-      const username = (body.username || "").trim().toLowerCase();
-      const password = (body.password || "").trim();
-
-      for (let i = 1; i < data.length; i++) {
-        const row = data[i];
-        if (String(row[0]).trim().toLowerCase() === username && String(row[1]).trim() === password) {
-          if (row[5] === false || String(row[5]).toUpperCase() === "FALSE") {
-            return createResponse({ status: "error", message: "هذا الحساب معطل حالياً من قِبل الإدارة" });
-          }
-
-          const mustChangePassword = row[6] === true || String(row[6]).toUpperCase() === "TRUE";
-
-          return createResponse({
-            status: "success",
-            user: {
-              username: row[0],
-              fullName: row[2],
-              role: row[3],
-              mustChangePassword: mustChangePassword
-            }
-          });
-        }
+      const username = String(body.username || "").trim().toLowerCase();
+      const password = String(body.password || "").trim();
+      const cache = CacheService.getScriptCache();
+      const failKey = "login_fail_" + username;
+      const failures = Number(cache.get(failKey)) || 0;
+      if (failures >= MAX_LOGIN_FAILURES) {
+        return createResponse({ status: "error", message: "تم إيقاف الدخول لهذا الحساب مؤقتاً بسبب محاولات خاطئة متكررة. حاول بعد 15 دقيقة." });
       }
-      return createResponse({ status: "error", message: "اسم المستخدم أو كلمة المرور غير صحيحة" });
+
+      const found = findUserRow_(usersSheet, username);
+      const check = found ? checkPassword_(found.row[1], password) : { ok: false };
+      if (!found || !check.ok) {
+        cache.put(failKey, String(failures + 1), LOGIN_LOCK_SECONDS);
+        return createResponse({ status: "error", message: "اسم المستخدم أو كلمة المرور غير صحيحة" });
+      }
+      cache.remove(failKey);
+
+      const row = found.row;
+      if (!isTrue_(row[5])) {
+        return createResponse({ status: "error", message: "هذا الحساب معطل حالياً من قِبل الإدارة" });
+      }
+
+      // ترقية كلمات المرور القديمة المكتوبة كنص عادي إلى صيغة مشفرة
+      let stored = row[1];
+      if (check.legacy) {
+        stored = hashPassword_(password);
+        usersSheet.getRange(found.rowNumber, 2).setValue(stored);
+      }
+
+      return createResponse({
+        status: "success",
+        token: createToken_(row[0], stored),
+        expiresInHours: SESSION_HOURS,
+        user: {
+          username: row[0],
+          fullName: row[2],
+          role: row[3],
+          mustChangePassword: isTrue_(row[6])
+        }
+      });
     }
 
-    // 2. تغيير كلمة المرور للمستخدم (أول مرة أو من لوحة التحكم)
+    // 2. التحقق من الجلسة الحالية (يُستخدم عند فتح لوحة التحكم)
+    if (action === "getSession") {
+      const auth = requireAuth_(ss, body, null, { allowPasswordChangeOnly: true });
+      return createResponse({ status: "success", user: auth.user });
+    }
+
+    // 3. تغيير كلمة المرور الشخصية (يتطلب كلمة المرور الحالية)
     if (action === "changePassword") {
-      const sheet = ss.getSheetByName("Users");
-      if (!sheet) return createResponse({ status: "error", message: "Users sheet not found" });
+      const auth = requireAuth_(ss, body, null, { allowPasswordChangeOnly: true });
+      const currentPassword = String(body.currentPassword || "").trim();
+      const newPassword = String(body.newPassword || "").trim();
 
-      const username = (body.username || "").trim().toLowerCase();
-      const newPassword = (body.newPassword || "").trim();
-
-      if (!newPassword || newPassword.length < 4) {
-        return createResponse({ status: "error", message: "كلمة المرور يجب أن لا تقل عن 4 خانات" });
+      if (newPassword.length < PASSWORD_MIN_LENGTH) {
+        return createResponse({ status: "error", message: "كلمة المرور يجب أن لا تقل عن " + PASSWORD_MIN_LENGTH + " خانات" });
+      }
+      const found = findUserRow_(usersSheet, auth.user.username);
+      if (!checkPassword_(found.row[1], currentPassword).ok) {
+        return createResponse({ status: "error", message: "كلمة المرور الحالية غير صحيحة" });
       }
 
-      const data = sheet.getDataRange().getValues();
-      for (let i = 1; i < data.length; i++) {
-        if (String(data[i][0]).trim().toLowerCase() === username) {
-          sheet.getRange(i + 1, 2).setValue(newPassword);
-          sheet.getRange(i + 1, 7).setValue(false);
-          return createResponse({ 
-            status: "success", 
-            message: "تم تحديث كلمة المرور بنجاح!" 
-          });
-        }
-      }
-      return createResponse({ status: "error", message: "المستخدم غير موجود" });
+      const stored = hashPassword_(newPassword);
+      usersSheet.getRange(found.rowNumber, 2).setValue(stored);
+      usersSheet.getRange(found.rowNumber, 7).setValue(false);
+      return createResponse({
+        status: "success",
+        message: "تم تحديث كلمة المرور بنجاح!",
+        token: createToken_(found.row[0], stored)
+      });
     }
 
-    // 3. حفظ / تعديل مستخدم جديد
+    // 4. قائمة المستخدمين (للمشرف فقط)
+    if (action === "getUsers") {
+      requireAuth_(ss, body, ["admin"]);
+      const data = usersSheet.getDataRange().getValues();
+      const users = [];
+      for (let i = 1; i < data.length; i++) {
+        if (data[i][0]) users.push(publicUser_(data[i]));
+      }
+      return createResponse({ status: "success", count: users.length, data: users });
+    }
+
+    // 5. حفظ / تعديل مستخدم (للمشرف فقط)
     if (action === "saveUser") {
-      const sheet = ss.getSheetByName("Users");
+      const auth = requireAuth_(ss, body, ["admin"]);
       const user = body.user;
-      if (!user || !user.username) return createResponse({ status: "error", message: "Missing user data" });
+      const username = String((user && user.username) || "").trim().toLowerCase();
+      if (!username || !/^[a-z0-9._-]{3,30}$/.test(username)) {
+        return createResponse({ status: "error", message: "اسم المستخدم يجب أن يكون 3-30 حرفاً إنجليزياً أو أرقام" });
+      }
+      const role = user.role === "admin" ? "admin" : "editor";
+      const newPassword = String(user.password || "").trim();
+      if (newPassword && newPassword.length < PASSWORD_MIN_LENGTH) {
+        return createResponse({ status: "error", message: "كلمة المرور يجب أن لا تقل عن " + PASSWORD_MIN_LENGTH + " خانات" });
+      }
 
-      const data = sheet.getDataRange().getValues();
-      let rowIndex = -1;
+      const lock = LockService.getScriptLock();
+      lock.waitLock(10000);
+      try {
+        const found = findUserRow_(usersSheet, username);
+        const isMainAdmin = username === "admin";
+        const isSelf = username === auth.user.username.toLowerCase();
+        let tempPassword = "";
 
-      for (let i = 1; i < data.length; i++) {
-        if (String(data[i][0]).toLowerCase() === String(user.username).toLowerCase()) {
-          rowIndex = i + 1;
-          break;
+        if (found) {
+          // لا يمكن تعطيل أو تخفيض صلاحية حساب admin الرئيسي أو حسابك الحالي (لتجنب فقدان الدخول)
+          const keepAdmin = isMainAdmin || isSelf;
+          const mustChange = newPassword ? user.mustChangePassword !== false : isTrue_(found.row[6]) && user.mustChangePassword !== false;
+          usersSheet.getRange(found.rowNumber, 1, 1, 7).setValues([[
+            found.row[0],
+            newPassword ? hashPassword_(newPassword) : found.row[1],
+            String(user.fullName || found.row[2] || ""),
+            keepAdmin ? "admin" : role,
+            found.row[4],
+            keepAdmin ? true : user.isActive !== false,
+            mustChange
+          ]]);
+        } else {
+          tempPassword = newPassword ? "" : generateTempPassword_();
+          usersSheet.appendRow([
+            username,
+            hashPassword_(newPassword || tempPassword),
+            String(user.fullName || username),
+            role,
+            new Date().toISOString(),
+            true,
+            user.mustChangePassword !== false
+          ]);
         }
+
+        return createResponse({
+          status: "success",
+          message: "تم حفظ المستخدم بنجاح",
+          tempPassword: tempPassword || undefined
+        });
+      } finally {
+        lock.releaseLock();
       }
-
-      const mustChange = user.mustChangePassword !== undefined ? user.mustChangePassword : true;
-
-      if (rowIndex > 0) {
-        const existingPass = data[rowIndex - 1][1];
-        sheet.getRange(rowIndex, 1, 1, 7).setValues([[
-          user.username,
-          user.password ? user.password : existingPass,
-          user.fullName || "",
-          user.role || "editor",
-          data[rowIndex - 1][4],
-          user.isActive !== false,
-          mustChange
-        ]]);
-      } else {
-        sheet.appendRow([
-          user.username,
-          user.password || "temp1234",
-          user.fullName || user.username,
-          user.role || "editor",
-          new Date().toISOString(),
-          true,
-          mustChange
-        ]);
-      }
-
-      return createResponse({ status: "success", message: "تم حفظ المستخدم بنجاح" });
     }
 
-    // 4. حذف مستخدم
+    // 6. حذف مستخدم (للمشرف فقط)
     if (action === "deleteUser") {
-      const sheet = ss.getSheetByName("Users");
-      const username = String(body.username || "").toLowerCase();
+      const auth = requireAuth_(ss, body, ["admin"]);
+      const username = String(body.username || "").trim().toLowerCase();
       if (username === "admin") {
         return createResponse({ status: "error", message: "لا يمكن حذف حساب المشرف الرئيسي" });
       }
-
-      const data = sheet.getDataRange().getValues();
-      for (let i = 1; i < data.length; i++) {
-        if (String(data[i][0]).toLowerCase() === username) {
-          sheet.deleteRow(i + 1);
-          return createResponse({ status: "success", message: "تم حذف المستخدم بنجاح" });
-        }
+      if (username === auth.user.username.toLowerCase()) {
+        return createResponse({ status: "error", message: "لا يمكنك حذف حسابك الحالي" });
       }
-      return createResponse({ status: "error", message: "المستخدم غير موجود" });
+
+      const found = findUserRow_(usersSheet, username);
+      if (!found) return createResponse({ status: "error", message: "المستخدم غير موجود" });
+      usersSheet.deleteRow(found.rowNumber);
+      return createResponse({ status: "success", message: "تم حذف المستخدم بنجاح" });
     }
 
-    // 5. استيراد منتجات بالجملة (Bulk Import All Products)
+    // 7. استيراد منتجات بالجملة (يمسح الورقة ويعيد كتابتها — للمشرف فقط)
     if (action === "bulkImportProducts") {
+      requireAuth_(ss, body, ["admin"]);
       const sheet = ss.getSheetByName("Products");
       if (!sheet) return createResponse({ status: "error", message: "Products sheet not found" });
 
@@ -933,111 +1155,95 @@ function doPost(e) {
         return createResponse({ status: "error", message: "No products provided" });
       }
 
-      sheet.clear();
-      sheet.appendRow([
-        "id", "categoryId", "nameAr", "nameEn", "price", "originalPrice",
-        "image", "badgeAr", "badgeEn", "rating", "reviewsCount", 
-        "isCustomizable", "customFieldLabelAr", "customFieldLabelEn", 
-        "descriptionAr", "descriptionEn", "updatedAt"
-      ]);
-      sheet.setFrozenRows(1);
+      const lock = LockService.getScriptLock();
+      lock.waitLock(20000);
+      try {
+        const rows = products.filter(function (prod) { return prod && prod.id; }).map(productRow_);
+        sheet.clear();
+        sheet.appendRow(PRODUCT_HEADERS);
+        sheet.setFrozenRows(1);
+        if (rows.length) sheet.getRange(2, 1, rows.length, rows[0].length).setValues(rows);
+        clearProductsCache_();
 
-      const rows = products.map(prod => [
-        prod.id,
-        prod.categoryId || "others",
-        prod.nameAr || "",
-        prod.nameEn || "",
-        Number(prod.price) || 0,
-        Number(prod.originalPrice) || Number(prod.price) || 0,
-        prod.image || "",
-        prod.badgeAr || "",
-        prod.badgeEn || "",
-        Number(prod.rating) || 5.0,
-        Number(prod.reviewsCount) || 1,
-        Boolean(prod.isCustomizable),
-        prod.customFieldLabelAr || "",
-        prod.customFieldLabelEn || "",
-        prod.descriptionAr || "",
-        prod.descriptionEn || "",
-        new Date().toISOString()
-      ]);
-
-      sheet.getRange(2, 1, rows.length, rows[0].length).setValues(rows);
-
-      return createResponse({
-        status: "success",
-        message: "تم تحديث واستيراد " + rows.length + " منتج بنجاح إلى Google Sheets!",
-        count: rows.length
-      });
+        return createResponse({
+          status: "success",
+          message: "تم تحديث واستيراد " + rows.length + " منتج بنجاح إلى Google Sheets!",
+          count: rows.length
+        });
+      } finally {
+        lock.releaseLock();
+      }
     }
 
-    // 6. حفظ / تعديل منتج فردي
+    // 8. حفظ / تعديل منتج فردي (مشرف أو محرر)
     if (action === "saveProduct") {
+      requireAuth_(ss, body, ["admin", "editor"]);
       const sheet = ss.getSheetByName("Products");
       const prod = body.product;
       if (!prod || !prod.id) return createResponse({ status: "error", message: "Missing product data" });
 
-      const data = sheet.getDataRange().getValues();
-      let rowIndex = -1;
-
-      for (let i = 1; i < data.length; i++) {
-        if (String(data[i][0]) === String(prod.id)) {
-          rowIndex = i + 1;
-          break;
+      const lock = LockService.getScriptLock();
+      lock.waitLock(10000);
+      try {
+        const data = sheet.getDataRange().getValues();
+        let rowIndex = -1;
+        for (let i = 1; i < data.length; i++) {
+          if (String(data[i][0]) === String(prod.id)) {
+            rowIndex = i + 1;
+            break;
+          }
         }
+
+        const rowValues = productRow_(prod);
+        if (rowIndex > 0) {
+          sheet.getRange(rowIndex, 1, 1, rowValues.length).setValues([rowValues]);
+        } else {
+          sheet.appendRow(rowValues);
+        }
+        clearProductsCache_();
+        return createResponse({ status: "success", message: "تم حفظ المنتج في Google Drive بنجاح", product: prod });
+      } finally {
+        lock.releaseLock();
       }
-
-      const rowValues = [
-        prod.id,
-        prod.categoryId || "others",
-        prod.nameAr || "",
-        prod.nameEn || "",
-        Number(prod.price) || 0,
-        Number(prod.originalPrice) || 0,
-        prod.image || "",
-        prod.badgeAr || "",
-        prod.badgeEn || "",
-        Number(prod.rating) || 5.0,
-        Number(prod.reviewsCount) || 1,
-        Boolean(prod.isCustomizable),
-        prod.customFieldLabelAr || "",
-        prod.customFieldLabelEn || "",
-        prod.descriptionAr || "",
-        prod.descriptionEn || "",
-        new Date().toISOString()
-      ];
-
-      if (rowIndex > 0) {
-        sheet.getRange(rowIndex, 1, 1, rowValues.length).setValues([rowValues]);
-      } else {
-        sheet.appendRow(rowValues);
-      }
-
-      return createResponse({ status: "success", message: "تم حفظ المنتج في Google Drive بنجاح", product: prod });
     }
 
-    // 7. حذف منتج
+    // 9. حذف منتج (مشرف أو محرر)
     if (action === "deleteProduct") {
+      requireAuth_(ss, body, ["admin", "editor"]);
       const sheet = ss.getSheetByName("Products");
       const prodId = body.id;
-      const data = sheet.getDataRange().getValues();
 
-      for (let i = 1; i < data.length; i++) {
-        if (String(data[i][0]) === String(prodId)) {
-          sheet.deleteRow(i + 1);
-          return createResponse({ status: "success", message: "تم حذف المنتج بنجاح من Google Drive" });
+      const lock = LockService.getScriptLock();
+      lock.waitLock(10000);
+      try {
+        const data = sheet.getDataRange().getValues();
+        for (let i = 1; i < data.length; i++) {
+          if (String(data[i][0]) === String(prodId)) {
+            sheet.deleteRow(i + 1);
+            clearProductsCache_();
+            return createResponse({ status: "success", message: "تم حذف المنتج بنجاح من Google Drive" });
+          }
         }
+        return createResponse({ status: "error", message: "المنتج غير موجود" });
+      } finally {
+        lock.releaseLock();
       }
-      return createResponse({ status: "error", message: "المنتج غير موجود" });
     }
 
-    // 8. رفع صورة إلى مجلد Google Drive
+    // 10. رفع صورة إلى مجلد Google Drive (مشرف أو محرر، صور فقط وبحد أقصى 5 ميجا)
     if (action === "uploadImage") {
-      const base64Data = body.base64Data;
-      const filename = body.filename || ("nourii-" + Date.now() + ".jpg");
-      const mimeType = body.mimeType || "image/jpeg";
+      requireAuth_(ss, body, ["admin", "editor"]);
+      const base64Data = String(body.base64Data || "");
+      const mimeType = String(body.mimeType || "image/jpeg");
+      const filename = String(body.filename || ("nourii-" + Date.now() + ".jpg")).replace(/[^\w.\-]+/g, "_").slice(0, 80);
 
       if (!base64Data) return createResponse({ status: "error", message: "بيانات الصورة مفقودة" });
+      if (!/^image\/(jpeg|png|webp|gif)$/.test(mimeType)) {
+        return createResponse({ status: "error", message: "يُسمح برفع الصور فقط (JPG / PNG / WEBP / GIF)" });
+      }
+      if (base64Data.length > 7 * 1024 * 1024) {
+        return createResponse({ status: "error", message: "حجم الصورة كبير جداً (الحد الأقصى 5 ميجا)" });
+      }
 
       let folders = DriveApp.getFoldersByName("Nourii Media");
       let folder;
@@ -1064,8 +1270,40 @@ function doPost(e) {
     return createResponse({ status: "error", message: "Unknown action" });
 
   } catch (err) {
+    if (err instanceof AuthError_) {
+      return createResponse({ status: "error", code: err.code, message: err.message });
+    }
     return createResponse({ status: "error", message: err.toString() });
   }
+}
+
+const PRODUCT_HEADERS = [
+  "id", "categoryId", "nameAr", "nameEn", "price", "originalPrice",
+  "image", "badgeAr", "badgeEn", "rating", "reviewsCount",
+  "isCustomizable", "customFieldLabelAr", "customFieldLabelEn",
+  "descriptionAr", "descriptionEn", "updatedAt"
+];
+
+function productRow_(prod) {
+  return [
+    String(prod.id),
+    prod.categoryId || "others",
+    prod.nameAr || "",
+    prod.nameEn || "",
+    Number(prod.price) || 0,
+    Number(prod.originalPrice) || 0,
+    prod.image || "",
+    prod.badgeAr || "",
+    prod.badgeEn || "",
+    Number(prod.rating) || 5.0,
+    Number(prod.reviewsCount) || 1,
+    Boolean(prod.isCustomizable),
+    prod.customFieldLabelAr || "",
+    prod.customFieldLabelEn || "",
+    prod.descriptionAr || "",
+    prod.descriptionEn || "",
+    new Date().toISOString()
+  ];
 }
 
 function createResponse(data) {

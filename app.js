@@ -90,11 +90,25 @@ function escapeHtml(text) {
 }
 
 // GOOGLE DRIVE PRIMARY SOURCE ENGINE
+const LIVE_PRODUCTS_MAX_AGE_MS = 5 * 60 * 1000;
+
 function fetchLiveProductsFromGoogleDrive() {
   const driveUrl = (typeof NOURII_CONFIG !== 'undefined' && NOURII_CONFIG.googleScriptUrl) 
     || localStorage.getItem('nourii_google_script_url');
 
   if (!driveUrl) {
+    APP_STATE.liveLoadFinished = true;
+    renderProductPage();
+    return;
+  }
+
+  // Moving between pages reuses a list fetched in the last few minutes instead of asking
+  // Google again on every click (keeps the store fast when many people visit at once).
+  // A product page whose product isn't in that list still checks Google for it.
+  const fetchedAt = Number(localStorage.getItem('nourii_live_products_at')) || 0;
+  const wantedId = document.getElementById('product-page') ? new URLSearchParams(window.location.search).get('id') : null;
+  const listIsFresh = Date.now() - fetchedAt < LIVE_PRODUCTS_MAX_AGE_MS && localStorage.getItem('nourii_live_products');
+  if (listIsFresh && (!wantedId || PRODUCTS.some(p => p.id === wantedId))) {
     APP_STATE.liveLoadFinished = true;
     renderProductPage();
     return;
@@ -107,6 +121,7 @@ function fetchLiveProductsFromGoogleDrive() {
         PRODUCTS.length = 0;
         res.data.forEach(p => PRODUCTS.push(p));
         localStorage.setItem('nourii_live_products', JSON.stringify(res.data));
+        localStorage.setItem('nourii_live_products_at', String(Date.now()));
         renderStorefront();
         console.log(`[Nourii] Loaded ${res.data.length} products live from Google Drive database.`);
       }
@@ -222,7 +237,7 @@ function renderCategoryShowcase() {
   container.innerHTML = CATEGORIES.map(cat => `
     <a href="${shopUrl(cat.id)}" class="group text-center">
       <div class="aspect-square rounded-2xl overflow-hidden bg-stone-100 dark:bg-stone-800 mb-2.5">
-        <img src="${cat.image}" alt="${escapeHtml(isAr ? cat.nameAr : cat.nameEn)}" loading="lazy"
+        <img src="${escapeHtml(cat.image)}" alt="${escapeHtml(isAr ? cat.nameAr : cat.nameEn)}" loading="lazy"
           class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500">
       </div>
       <span class="font-display font-bold text-sm sm:text-base group-hover:text-brand-500 transition-colors">${isAr ? cat.nameAr : cat.nameEn}</span>
@@ -275,7 +290,7 @@ function renderShopBanner() {
 
   banner.innerHTML = `
     <div class="flex flex-col sm:flex-row items-center gap-6 bg-brand-50 dark:bg-stone-900 rounded-[28px] p-6 sm:p-8">
-      ${cat ? `<img src="${cat.image}" alt="${escapeHtml(title)}" class="w-full sm:w-48 h-40 sm:h-36 object-cover rounded-2xl">` : ''}
+      ${cat ? `<img src="${escapeHtml(cat.image)}" alt="${escapeHtml(title)}" class="w-full sm:w-48 h-40 sm:h-36 object-cover rounded-2xl">` : ''}
       <div class="text-center sm:text-start">
         <h1 class="text-3xl sm:text-4xl font-bold mb-2">${title}</h1>
         ${desc ? `<p class="text-stone-600 dark:text-stone-300 text-sm sm:text-base leading-relaxed max-w-2xl">${escapeHtml(desc)}</p>` : ''}
@@ -318,7 +333,7 @@ function productCardHTML(prod) {
   return `
     <div class="product-card group flex flex-col">
       <a href="${productUrl(prod.id)}" class="product-card-img block">
-        <img src="${prod.image}" alt="${name}" loading="lazy">
+        <img src="${escapeHtml(prod.image)}" alt="${name}" loading="lazy">
         ${onSale ? `<span class="sale-tag">${isAr ? `خصم ${salePercent}%` : `-${salePercent}%`}</span>` : ''}
         <button onclick="event.preventDefault(); event.stopPropagation(); toggleFavorite('${prod.id}')"
           class="absolute top-3 end-3 w-9 h-9 rounded-full bg-white/95 dark:bg-stone-900/90 flex items-center justify-center text-stone-500 hover:text-brand-500 transition-colors"
@@ -484,13 +499,13 @@ function renderProductPage() {
       <!-- Gallery -->
       <div>
         <div class="product-card-img rounded-3xl">
-          <img id="pp-main-img" src="${images[0]}" alt="${name}">
+          <img id="pp-main-img" src="${escapeHtml(images[0])}" alt="${name}">
         </div>
         ${images.length > 1 ? `
           <div class="grid grid-cols-5 gap-3 mt-3">
             ${images.map((src, i) => `
               <button onclick="selectGalleryImage(${i})" class="gallery-thumb ${i === 0 ? 'is-active' : ''}" data-index="${i}">
-                <img src="${src}" alt="" class="w-full h-full object-cover" loading="lazy">
+                <img src="${escapeHtml(src)}" alt="" class="w-full h-full object-cover" loading="lazy">
               </button>`).join('')}
           </div>` : ''}
       </div>
@@ -772,7 +787,7 @@ function renderCartDrawer() {
     return `
       <div class="flex gap-4 pb-4 border-b border-stone-100 dark:border-stone-800 relative">
         <a href="${productUrl(item.id)}" class="flex-shrink-0">
-          <img src="${item.image}" alt="${name}" class="w-20 h-20 rounded-2xl object-cover">
+          <img src="${escapeHtml(item.image)}" alt="${name}" class="w-20 h-20 rounded-2xl object-cover">
         </a>
 
         <div class="flex-1 flex flex-col justify-between">
