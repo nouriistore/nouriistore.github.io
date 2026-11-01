@@ -3,7 +3,7 @@
 // ========================================================
 
 const NOURII_CONFIG = {
-  googleScriptUrl: 'https://script.google.com/macros/s/AKfycbzfe2iKamptv3j6jh6RQLq_IxuzMQtDehdhMFG7ZHU5qrRVx-eIUnSwD-5K-Q4cKkw/exec',
+  googleScriptUrl: 'https://script.google.com/macros/s/AKfycbxi85blml27V9b4g7DBL-VUP75tGep86GNY0EoJ1KISnkbdUfS7upPZbof17v-wqAE/exec',
 
   // مستودع وبيانات GitHub
   githubRepo: 'nouriistore/nouriistore.github.io',

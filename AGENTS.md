@@ -146,3 +146,5 @@ copies the site uses live in `assets/images/`.
   cleanup: grouped admin menu, removed the visitor "store settings" box and the header GitHub
   button, the bulk "replace the sheet" export now asks first, and editing a product no longer
   wipes its English description / rating. Owner must redeploy the Apps Script.
+- 2026-11-01 (Claude Code): Owner redeployed the Apps Script again as a new deployment (with
+  settings, ads, discounts and coupons); `config.js` points at it.
