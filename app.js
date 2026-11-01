@@ -27,13 +27,14 @@ const APP_STATE = {
 // INITIALIZATION
 document.addEventListener('DOMContentLoaded', () => {
   loadStoredData();
+  applyUrlFilters();
   applyTheme(APP_STATE.theme);
   applyLanguage(APP_STATE.lang);
-  renderCategories();
-  renderProducts();
   renderReviews();
   renderFaqs();
   updateCartBadge();
+  updateFavBadge();
+  updateWhatsAppLinks();
   setupEventListeners();
   initGiveawaysEstimator();
 
@@ -41,12 +42,56 @@ document.addEventListener('DOMContentLoaded', () => {
   fetchLiveProductsFromGoogleDrive();
 });
 
+// Home page links like index.html?cat=notebooks, ?q=..., ?fav=1 open the catalog pre-filtered
+function applyUrlFilters() {
+  const params = new URLSearchParams(window.location.search);
+  const cat = params.get('cat');
+  if (cat && (cat === 'all' || CATEGORIES.some(c => c.id === cat))) APP_STATE.currentCategory = cat;
+  if (params.get('q')) {
+    APP_STATE.searchQuery = params.get('q');
+    const searchInput = document.getElementById('search-input');
+    if (searchInput) searchInput.value = APP_STATE.searchQuery;
+  }
+  if (params.get('fav') === '1') APP_STATE.favoritesOnly = true;
+}
+
+// Re-render everything that depends on the product list or the language
+function renderStorefront() {
+  if (typeof renderHeaderNav === 'function') renderHeaderNav();
+  renderCategoryShowcase();
+  renderCategories();
+  renderProducts();
+  renderProductPage();
+}
+
+function updateWhatsAppLinks() {
+  const cleanPhone = APP_STATE.settings.whatsappNumber.replace(/[^0-9]/g, '');
+  document.querySelectorAll('.js-whatsapp-link').forEach(a => { a.href = `https://wa.me/${cleanPhone}`; });
+}
+
+function formatPrice(amount) {
+  const currency = APP_STATE.lang === 'ar' ? APP_STATE.settings.currencyAr : APP_STATE.settings.currencyEn;
+  return `${amount} ${currency}`;
+}
+
+function productUrl(id) {
+  return `product.html?id=${encodeURIComponent(id)}`;
+}
+
+function escapeHtml(text) {
+  return String(text ?? '').replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
+}
+
 // GOOGLE DRIVE PRIMARY SOURCE ENGINE
 function fetchLiveProductsFromGoogleDrive() {
   const driveUrl = (typeof NOURII_CONFIG !== 'undefined' && NOURII_CONFIG.googleScriptUrl) 
     || localStorage.getItem('nourii_google_script_url');
 
-  if (!driveUrl) return;
+  if (!driveUrl) {
+    APP_STATE.liveLoadFinished = true;
+    renderProductPage();
+    return;
+  }
 
   fetch(`${driveUrl}?action=getProducts`)
     .then(res => res.json())
@@ -55,13 +100,17 @@ function fetchLiveProductsFromGoogleDrive() {
         PRODUCTS.length = 0;
         res.data.forEach(p => PRODUCTS.push(p));
         localStorage.setItem('nourii_live_products', JSON.stringify(res.data));
-        renderCategories();
-        renderProducts();
+        renderStorefront();
         console.log(`[Nourii] Loaded ${res.data.length} products live from Google Drive database.`);
       }
     })
     .catch(err => {
       console.warn('[Nourii] Using offline/cached catalog:', err);
+    })
+    .finally(() => {
+      // The product page waits for live data before declaring a product missing
+      APP_STATE.liveLoadFinished = true;
+      renderProductPage();
     });
 }
 
@@ -120,7 +169,7 @@ function applyTheme(theme) {
 
   const themeIcon = document.getElementById('theme-toggle-icon');
   if (themeIcon) {
-    themeIcon.className = theme === 'dark' ? 'fa-solid fa-sun text-yellow-400' : 'fa-solid fa-moon text-stone-600';
+    themeIcon.className = theme === 'dark' ? 'fa-solid fa-sun' : 'fa-solid fa-moon';
   }
 }
 
@@ -150,55 +199,50 @@ function applyLanguage(lang) {
   const langLabel = document.getElementById('lang-toggle-text');
   if (langLabel) langLabel.innerText = lang === 'ar' ? 'English' : 'عربي';
 
-  renderCategories();
-  renderProducts();
+  renderStorefront();
 }
 
 function toggleLanguage() {
   applyLanguage(APP_STATE.lang === 'ar' ? 'en' : 'ar');
 }
 
-// RENDER CATEGORY BUTTONS
+// CATEGORY SHOWCASE (home page: one tile per category)
+function renderCategoryShowcase() {
+  const container = document.getElementById('categories-showcase-grid');
+  if (!container) return;
+  const isAr = APP_STATE.lang === 'ar';
+
+  container.innerHTML = CATEGORIES.map(cat => `
+    <a href="index.html?cat=${cat.id}#catalog-section" onclick="return navCategory(event, '${cat.id}')" class="group text-center">
+      <div class="aspect-square rounded-2xl overflow-hidden bg-stone-100 dark:bg-stone-800 mb-2.5">
+        <img src="${cat.image}" alt="${escapeHtml(isAr ? cat.nameAr : cat.nameEn)}" loading="lazy"
+          class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500">
+      </div>
+      <span class="font-display font-bold text-sm sm:text-base group-hover:text-brand-500 transition-colors">${isAr ? cat.nameAr : cat.nameEn}</span>
+    </a>
+  `).join('');
+}
+
+// RENDER CATEGORY FILTER CHIPS
 function renderCategories() {
   const container = document.getElementById('categories-container');
   if (!container) return;
 
   const isAr = APP_STATE.lang === 'ar';
-  
-  // "All" Category button
-  let html = `
-    <button onclick="selectCategory('all')" 
-      class="category-chip px-5 py-2.5 rounded-full border text-sm font-bold flex items-center gap-2.5 transition-all ${
-        APP_STATE.currentCategory === 'all' && !APP_STATE.favoritesOnly
-          ? 'active'
-          : 'bg-white dark:bg-stone-800 border-stone-200 dark:border-stone-700 text-stone-700 dark:text-stone-200 hover:border-pink-300'
-      }">
-      <i class="fa-solid fa-border-all text-xs"></i>
-      <span>${isAr ? 'جميع الأقسام' : 'All Products'}</span>
-      <span class="text-xs px-2 py-0.5 rounded-full bg-stone-100 dark:bg-stone-700 font-normal">${PRODUCTS.length}</span>
-    </button>
-  `;
-
-  CATEGORIES.forEach(cat => {
-    const count = PRODUCTS.filter(p => p.categoryId === cat.id).length;
-    const isActive = APP_STATE.currentCategory === cat.id && !APP_STATE.favoritesOnly;
-    const name = isAr ? cat.nameAr : cat.nameEn;
-
-    html += `
-      <button onclick="selectCategory('${cat.id}')" 
-        class="category-chip px-5 py-2.5 rounded-full border text-sm font-bold flex items-center gap-2.5 transition-all ${
-          isActive
-            ? 'active'
-            : 'bg-white dark:bg-stone-800 border-stone-200 dark:border-stone-700 text-stone-700 dark:text-stone-200 hover:border-pink-300'
+  const chip = (id, label, count) => {
+    const isActive = APP_STATE.currentCategory === id && !APP_STATE.favoritesOnly;
+    return `
+      <button onclick="selectCategory('${id}')"
+        class="category-chip px-4 py-2 rounded-full border text-sm font-bold flex items-center gap-2 ${
+          isActive ? 'active' : 'bg-white dark:bg-stone-800 border-stone-200 dark:border-stone-700 hover:border-brand-300 hover:text-brand-500'
         }">
-        <i class="fa-solid ${cat.icon} text-xs"></i>
-        <span>${name}</span>
-        <span class="text-xs px-2 py-0.5 rounded-full bg-stone-100 dark:bg-stone-700 font-normal">${count}</span>
-      </button>
-    `;
-  });
+        <span>${label}</span>
+        <span class="text-xs opacity-70 font-normal">${count}</span>
+      </button>`;
+  };
 
-  container.innerHTML = html;
+  container.innerHTML = chip('all', isAr ? 'الكل' : 'All', PRODUCTS.length) +
+    CATEGORIES.map(cat => chip(cat.id, isAr ? cat.nameAr : cat.nameEn, PRODUCTS.filter(p => p.categoryId === cat.id).length)).join('');
 }
 
 function selectCategory(catId) {
@@ -206,46 +250,74 @@ function selectCategory(catId) {
   APP_STATE.favoritesOnly = false;
   renderCategories();
   renderProducts();
+  if (typeof renderHeaderNav === 'function') renderHeaderNav();
 
-  // Smooth scroll to catalog section if user clicked from hero or category showcase
   const catalogEl = document.getElementById('catalog-section');
   if (catalogEl) {
     catalogEl.scrollIntoView({ behavior: 'smooth' });
   }
 }
 
-// RENDER PRODUCTS
+// PRODUCT CARD (used by the catalog grid and "related products")
+function productCardHTML(prod) {
+  const isAr = APP_STATE.lang === 'ar';
+  const isFav = APP_STATE.favorites.includes(prod.id);
+  const name = escapeHtml(isAr ? prod.nameAr : prod.nameEn);
+  const onSale = prod.originalPrice && Number(prod.originalPrice) > Number(prod.price);
+  const salePercent = onSale ? Math.round((1 - prod.price / prod.originalPrice) * 100) : 0;
+
+  return `
+    <div class="product-card group flex flex-col">
+      <a href="${productUrl(prod.id)}" class="product-card-img block">
+        <img src="${prod.image}" alt="${name}" loading="lazy">
+        ${onSale ? `<span class="sale-tag">${isAr ? `خصم ${salePercent}%` : `-${salePercent}%`}</span>` : ''}
+        <button onclick="event.preventDefault(); event.stopPropagation(); toggleFavorite('${prod.id}')"
+          class="absolute top-3 end-3 w-9 h-9 rounded-full bg-white/95 dark:bg-stone-900/90 flex items-center justify-center text-stone-500 hover:text-brand-500 transition-colors"
+          title="${isAr ? 'المفضلة' : 'Wishlist'}">
+          <i class="${isFav ? 'fa-solid fa-heart text-brand-500' : 'fa-regular fa-heart'} text-sm"></i>
+        </button>
+      </a>
+
+      <div class="pt-3 flex-1 flex flex-col">
+        <a href="${productUrl(prod.id)}" class="font-display font-bold text-[15px] sm:text-base leading-snug line-clamp-2 hover:text-brand-500 transition-colors mb-1.5">
+          ${name}
+        </a>
+        <div class="flex items-baseline gap-2 mb-3">
+          <span class="price-now text-base">${formatPrice(prod.price)}</span>
+          ${onSale ? `<span class="price-old text-xs">${formatPrice(prod.originalPrice)}</span>` : ''}
+        </div>
+        <button onclick="quickAddToCart('${prod.id}')" class="btn-outline mt-auto h-10 text-sm w-full">
+          ${prod.isCustomizable ? (isAr ? 'اختر التفاصيل' : 'Choose options') : (isAr ? 'أضف للسلة' : 'Add to cart')}
+        </button>
+      </div>
+    </div>
+  `;
+}
+
+// RENDER PRODUCTS GRID
 function renderProducts() {
   const container = document.getElementById('products-grid');
   const countEl = document.getElementById('products-count');
   if (!container) return;
 
   const isAr = APP_STATE.lang === 'ar';
-  const currency = isAr ? APP_STATE.settings.currencyAr : APP_STATE.settings.currencyEn;
 
-  // Filter products
   let filtered = PRODUCTS.filter(p => {
-    // Category filter
     if (APP_STATE.favoritesOnly) {
       if (!APP_STATE.favorites.includes(p.id)) return false;
     } else if (APP_STATE.currentCategory !== 'all' && p.categoryId !== APP_STATE.currentCategory) {
       return false;
     }
 
-    // Search query filter
     if (APP_STATE.searchQuery.trim() !== '') {
       const q = APP_STATE.searchQuery.toLowerCase().trim();
-      const inNameAr = p.nameAr.toLowerCase().includes(q);
-      const inNameEn = p.nameEn.toLowerCase().includes(q);
-      const inDescAr = p.descriptionAr.toLowerCase().includes(q);
-      const inDescEn = p.descriptionEn.toLowerCase().includes(q);
-      if (!inNameAr && !inNameEn && !inDescAr && !inDescEn) return false;
+      const fields = [p.nameAr, p.nameEn, p.descriptionAr, p.descriptionEn].map(f => String(f || '').toLowerCase());
+      if (!fields.some(f => f.includes(q))) return false;
     }
 
     return true;
   });
 
-  // Sort
   if (APP_STATE.sortBy === 'price-asc') {
     filtered.sort((a, b) => a.price - b.price);
   } else if (APP_STATE.sortBy === 'price-desc') {
@@ -254,19 +326,24 @@ function renderProducts() {
     filtered.sort((a, b) => b.rating - a.rating);
   }
 
+  const titleEl = document.getElementById('catalog-title');
+  if (titleEl) {
+    const cat = CATEGORIES.find(c => c.id === APP_STATE.currentCategory);
+    titleEl.innerText = APP_STATE.favoritesOnly
+      ? (isAr ? 'المفضلة' : 'Wishlist')
+      : cat ? (isAr ? cat.nameAr : cat.nameEn) : (isAr ? 'جميع المنتجات' : 'All Products');
+  }
+
   if (countEl) {
-    countEl.innerText = `${filtered.length} ${isAr ? 'منتج متاح' : 'products found'}`;
+    countEl.innerText = `${filtered.length} ${isAr ? 'منتج' : 'products'}`;
   }
 
   if (filtered.length === 0) {
     container.innerHTML = `
       <div class="col-span-full py-16 text-center">
-        <div class="w-20 h-20 mx-auto rounded-full bg-pink-50 dark:bg-stone-800 flex items-center justify-center text-pink-400 text-3xl mb-4">
-          <i class="fa-solid fa-bag-shopping"></i>
-        </div>
         <h3 class="text-xl font-bold mb-2">${isAr ? 'لم نعثر على منتجات مطابقة' : 'No products found'}</h3>
-        <p class="text-stone-500 max-w-md mx-auto text-sm mb-6">${isAr ? 'جرب البحث بكلمات أخرى أو تصفح بقية أقسام نوري الجميلة.' : 'Try searching for something else or browse our categories.'}</p>
-        <button onclick="resetFilters()" class="btn-primary px-6 py-2.5 text-sm">
+        <p class="text-stone-500 max-w-md mx-auto text-sm mb-6">${isAr ? 'جرب البحث بكلمات أخرى أو تصفح بقية الأقسام.' : 'Try searching for something else or browse our categories.'}</p>
+        <button onclick="resetFilters()" class="btn-primary h-11 px-6 text-sm">
           ${isAr ? 'عرض كل المنتجات' : 'View All Products'}
         </button>
       </div>
@@ -274,89 +351,7 @@ function renderProducts() {
     return;
   }
 
-  container.innerHTML = filtered.map(prod => {
-    const isFav = APP_STATE.favorites.includes(prod.id);
-    const name = isAr ? prod.nameAr : prod.nameEn;
-    const badge = isAr ? prod.badgeAr : prod.badgeEn;
-    const desc = isAr ? prod.descriptionAr : prod.descriptionEn;
-
-    return `
-      <div class="nourii-card flex flex-col overflow-hidden group">
-        <!-- Image & Badges -->
-        <div class="product-img-wrapper h-56 w-full cursor-pointer" onclick="openProductModal('${prod.id}')">
-          <img src="${prod.image}" alt="${name}" class="w-full h-full object-cover object-center" loading="lazy">
-          
-          <!-- Category / Promotion Badge -->
-          ${badge ? `
-            <span class="absolute top-3.5 inset-inline-start-3.5 bg-white/95 dark:bg-stone-900/90 backdrop-blur-md text-pink-600 dark:text-pink-400 text-xs font-bold px-3 py-1 rounded-full shadow-sm">
-              ${badge}
-            </span>
-          ` : ''}
-
-          <!-- Favorite Button -->
-          <button onclick="event.stopPropagation(); toggleFavorite('${prod.id}')" 
-            class="absolute top-3.5 inset-inline-end-3.5 w-9 h-9 rounded-full bg-white/95 dark:bg-stone-900/90 backdrop-blur-md flex items-center justify-center text-stone-400 hover:text-red-500 transition-colors shadow-sm">
-            <i class="${isFav ? 'fa-solid fa-heart text-red-500' : 'fa-regular fa-heart'} text-sm"></i>
-          </button>
-
-          ${prod.isCustomizable ? `
-            <span class="absolute bottom-3 inset-inline-start-3 bg-amber-500/90 text-white text-[11px] font-semibold px-2.5 py-0.5 rounded-md backdrop-blur-sm flex items-center gap-1">
-              <i class="fa-solid fa-pen-fancy text-[10px]"></i>
-              ${isAr ? 'قابل للتخصيص بالاسم' : 'Personalizable'}
-            </span>
-          ` : ''}
-        </div>
-
-        <!-- Content -->
-        <div class="p-5 flex-1 flex flex-col justify-between">
-          <div>
-            <div class="flex items-center justify-between text-xs text-stone-400 mb-2">
-              <span class="flex items-center gap-1 text-amber-500 font-bold">
-                <i class="fa-solid fa-star text-[11px]"></i>
-                ${prod.rating}
-                <span class="text-stone-400 font-normal">(${prod.reviewsCount})</span>
-              </span>
-              <span class="text-stone-400 uppercase text-[11px] font-semibold">${prod.categoryId}</span>
-            </div>
-
-            <h3 onclick="openProductModal('${prod.id}')" class="font-bold text-base mb-1.5 line-clamp-1 hover:text-pink-600 dark:hover:text-pink-400 cursor-pointer transition-colors" title="${name}">
-              ${name}
-            </h3>
-
-            <p class="text-xs text-stone-500 dark:text-stone-400 line-clamp-2 leading-relaxed mb-4">
-              ${desc}
-            </p>
-          </div>
-
-          <!-- Price & Action -->
-          <div class="pt-3 border-t border-stone-100 dark:border-stone-800/80 flex items-center justify-between gap-2">
-            <div>
-              <div class="flex items-baseline gap-2">
-                <span class="text-lg font-black text-pink-600 dark:text-pink-400">${prod.price}</span>
-                <span class="text-xs font-bold text-pink-600/80 dark:text-pink-400/80">${currency}</span>
-                ${prod.originalPrice ? `
-                  <span class="text-xs text-stone-400 line-through">${prod.originalPrice} ${currency}</span>
-                ` : ''}
-              </div>
-            </div>
-
-            <div class="flex items-center gap-1.5">
-              <button onclick="openProductModal('${prod.id}')" 
-                class="w-9 h-9 rounded-full bg-stone-100 dark:bg-stone-800 text-stone-600 dark:text-stone-300 hover:bg-stone-200 dark:hover:bg-stone-700 flex items-center justify-center transition-colors"
-                title="${isAr ? 'معاينة سريعة' : 'Quick View'}">
-                <i class="fa-solid fa-eye text-xs"></i>
-              </button>
-              <button onclick="quickAddToCart('${prod.id}')" 
-                class="btn-primary h-9 px-3.5 rounded-full text-xs flex items-center gap-1.5">
-                <i class="fa-solid fa-cart-plus"></i>
-                <span class="hidden sm:inline">${isAr ? 'أضف' : 'Add'}</span>
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
-    `;
-  }).join('');
+  container.innerHTML = filtered.map(productCardHTML).join('');
 }
 
 function resetFilters() {
@@ -367,6 +362,7 @@ function resetFilters() {
   if (searchInput) searchInput.value = '';
   renderCategories();
   renderProducts();
+  if (typeof renderHeaderNav === 'function') renderHeaderNav();
 }
 
 // FAVORITES
@@ -378,10 +374,11 @@ function toggleFavorite(id) {
     showToast(isAr ? 'تم الحذف من المفضلة' : 'Removed from wishlist', 'info');
   } else {
     APP_STATE.favorites.push(id);
-    showToast(isAr ? 'تمت الإضافة إلى قائمة المفضلة ❤️' : 'Added to wishlist ❤️', 'success');
+    showToast(isAr ? 'تمت الإضافة إلى المفضلة ❤️' : 'Added to wishlist ❤️', 'success');
   }
   saveFavorites();
   renderProducts();
+  renderProductPage();
 }
 
 function toggleFavoritesView() {
@@ -399,156 +396,236 @@ function updateFavBadge() {
   if (badge) {
     const count = APP_STATE.favorites.length;
     badge.innerText = count;
-    badge.style.display = count > 0 ? 'flex' : 'none';
+    badge.classList.toggle('hidden', count === 0);
   }
 }
 
-// PRODUCT QUICK VIEW MODAL
-let currentModalProduct = null;
+// PRODUCT PAGE (product.html?id=...)
+let currentPageProduct = null;
+let productPageRenderedId = null;
 
-function openProductModal(productId) {
-  const prod = PRODUCTS.find(p => p.id === productId);
-  if (!prod) return;
+// Products can carry extra photos in `images` (array, or a comma / new-line separated string from the Sheet)
+function getProductImages(prod) {
+  let extra = prod.images || [];
+  if (typeof extra === 'string') extra = extra.split(/[\n,|]+/);
+  return [...new Set([prod.image, ...extra].map(s => String(s || '').trim()).filter(Boolean))];
+}
 
-  currentModalProduct = prod;
-  const modal = document.getElementById('product-modal');
-  const modalContent = document.getElementById('product-modal-content');
-  if (!modal || !modalContent) return;
+function renderProductPage() {
+  const page = document.getElementById('product-page');
+  if (!page) return;
 
+  const id = new URLSearchParams(window.location.search).get('id');
+  const prod = PRODUCTS.find(p => p.id === id);
   const isAr = APP_STATE.lang === 'ar';
-  const currency = isAr ? APP_STATE.settings.currencyAr : APP_STATE.settings.currencyEn;
-  const name = isAr ? prod.nameAr : prod.nameEn;
-  const desc = isAr ? prod.descriptionAr : prod.descriptionEn;
-  const badge = isAr ? prod.badgeAr : prod.badgeEn;
-  const customLabel = isAr ? prod.customFieldLabelAr : prod.customFieldLabelEn;
 
-  modalContent.innerHTML = `
-    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 p-6">
-      <!-- Product Image -->
-      <div class="rounded-2xl overflow-hidden bg-stone-100 dark:bg-stone-800 relative h-72 md:h-auto max-h-96">
-        <img src="${prod.image}" alt="${name}" class="w-full h-full object-cover">
-        ${badge ? `
-          <span class="absolute top-4 inset-inline-start-4 bg-white/95 dark:bg-stone-900/90 text-pink-600 dark:text-pink-400 text-xs font-bold px-3 py-1.5 rounded-full shadow-sm">
-            ${badge}
-          </span>
-        ` : ''}
+  if (!prod) {
+    if (!APP_STATE.liveLoadFinished) return; // still waiting for Google Drive
+    page.innerHTML = `
+      <div class="py-28 text-center">
+        <h1 class="text-3xl font-bold mb-3">${isAr ? 'المنتج غير موجود' : 'Product not found'}</h1>
+        <p class="text-stone-500 mb-8">${isAr ? 'ربما تم حذف هذا المنتج أو تغيير رابطه.' : 'This product may have been removed or its link changed.'}</p>
+        <a href="index.html#catalog-section" class="btn-primary h-[50px] px-8 inline-flex items-center">${isAr ? 'تصفح كل المنتجات' : 'Browse all products'}</a>
+      </div>`;
+    document.getElementById('related-section')?.classList.add('hidden');
+    return;
+  }
+
+  // Keep what the shopper typed when the page re-renders (language switch, live data refresh)
+  const prevQty = productPageRenderedId === prod.id ? document.getElementById('pp-qty')?.value : null;
+  const prevCustom = productPageRenderedId === prod.id ? document.getElementById('pp-custom')?.value : null;
+  currentPageProduct = prod;
+  productPageRenderedId = prod.id;
+
+  const cat = CATEGORIES.find(c => c.id === prod.categoryId);
+  const name = escapeHtml(isAr ? prod.nameAr : prod.nameEn);
+  const desc = escapeHtml(isAr ? prod.descriptionAr : prod.descriptionEn);
+  const badge = escapeHtml(isAr ? prod.badgeAr : prod.badgeEn);
+  const customLabel = escapeHtml(isAr ? prod.customFieldLabelAr : prod.customFieldLabelEn);
+  const onSale = prod.originalPrice && Number(prod.originalPrice) > Number(prod.price);
+  const isFav = APP_STATE.favorites.includes(prod.id);
+  const images = getProductImages(prod);
+
+  document.title = `${isAr ? prod.nameAr : prod.nameEn} | Nourii`;
+
+  page.innerHTML = `
+    <!-- Breadcrumb -->
+    <nav class="text-sm text-stone-500 mb-6 flex items-center flex-wrap gap-2">
+      <a href="index.html" class="hover:text-brand-500">${isAr ? 'الرئيسية' : 'Home'}</a>
+      <i class="fa-solid fa-chevron-${isAr ? 'left' : 'right'} text-[10px] opacity-60"></i>
+      ${cat ? `
+        <a href="index.html?cat=${cat.id}#catalog-section" class="hover:text-brand-500">${isAr ? cat.nameAr : cat.nameEn}</a>
+        <i class="fa-solid fa-chevron-${isAr ? 'left' : 'right'} text-[10px] opacity-60"></i>` : ''}
+      <span class="text-stone-800 dark:text-stone-200">${name}</span>
+    </nav>
+
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-14">
+      <!-- Gallery -->
+      <div>
+        <div class="product-card-img rounded-3xl">
+          <img id="pp-main-img" src="${images[0]}" alt="${name}">
+        </div>
+        ${images.length > 1 ? `
+          <div class="grid grid-cols-5 gap-3 mt-3">
+            ${images.map((src, i) => `
+              <button onclick="selectGalleryImage(${i})" class="gallery-thumb ${i === 0 ? 'is-active' : ''}" data-index="${i}">
+                <img src="${src}" alt="" class="w-full h-full object-cover" loading="lazy">
+              </button>`).join('')}
+          </div>` : ''}
       </div>
 
-      <!-- Product Details & Customization -->
-      <div class="flex flex-col justify-between">
-        <div>
-          <div class="flex items-center justify-between mb-2">
-            <span class="text-xs uppercase font-bold text-pink-600 tracking-wider">${prod.categoryId}</span>
-            <div class="flex items-center gap-1 text-amber-500 text-sm">
-              <i class="fa-solid fa-star"></i>
-              <span class="font-bold">${prod.rating}</span>
-              <span class="text-stone-400 text-xs font-normal">(${prod.reviewsCount} ${isAr ? 'تقييم' : 'reviews'})</span>
-            </div>
-          </div>
+      <!-- Details -->
+      <div class="lg:pt-4">
+        ${badge ? `<span class="text-sm font-bold text-brand-500">${badge}</span>` : ''}
+        <h1 class="text-3xl sm:text-4xl font-bold leading-snug mt-1 mb-4">${name}</h1>
 
-          <h2 class="text-2xl font-black mb-3">${name}</h2>
-
-          <div class="flex items-baseline gap-3 mb-4">
-            <span class="text-3xl font-black text-pink-600">${prod.price}</span>
-            <span class="text-base font-bold text-pink-600">${currency}</span>
-            ${prod.originalPrice ? `
-              <span class="text-sm text-stone-400 line-through">${prod.originalPrice} ${currency}</span>
-              <span class="text-xs bg-red-100 text-red-600 font-bold px-2 py-0.5 rounded-full">
-                ${Math.round((1 - prod.price / prod.originalPrice) * 100)}% ${isAr ? 'خصم' : 'OFF'}
-              </span>
-            ` : ''}
-          </div>
-
-          <p class="text-stone-600 dark:text-stone-300 text-sm leading-relaxed mb-6">
-            ${desc}
-          </p>
-
-          <!-- Customization Field if Applicable -->
-          ${prod.isCustomizable ? `
-            <div class="bg-pink-50/70 dark:bg-stone-800/60 p-4 rounded-xl border border-pink-100 dark:border-stone-700 mb-6">
-              <label class="block text-xs font-bold text-stone-700 dark:text-stone-200 mb-1.5 flex items-center gap-1.5">
-                <i class="fa-solid fa-wand-magic-sparkles text-pink-500"></i>
-                <span>${customLabel || (isAr ? 'الاسم أو العبارة المراد كتابتها:' : 'Custom text / name:')}</span>
-              </label>
-              <input type="text" id="modal-custom-text" 
-                placeholder="${isAr ? 'مثال: اسم نور أو مناسبة سبوع آدم...' : 'e.g., Name: Noor'}"
-                class="w-full px-3.5 py-2.5 text-sm rounded-lg border border-pink-200 dark:border-stone-700 bg-white dark:bg-stone-800 focus:outline-none focus:ring-2 focus:ring-pink-400">
-              <p class="text-[11px] text-stone-500 mt-1.5">
-                ${isAr ? '✨ سيتم تنفيذ الطلب خصيصاً بالاسم والبيانات المكتوبة هنا.' : '✨ We will handcraft this item specifically with your provided details.'}
-              </p>
-            </div>
-          ` : ''}
-
-          <!-- Quantity Stepper -->
-          <div class="flex items-center gap-4 mb-6">
-            <span class="text-sm font-bold text-stone-700 dark:text-stone-300">${isAr ? 'الكمية:' : 'Quantity:'}</span>
-            <div class="flex items-center border border-stone-200 dark:border-stone-700 rounded-lg bg-white dark:bg-stone-800">
-              <button onclick="changeModalQty(-1)" class="w-9 h-9 flex items-center justify-center text-stone-600 hover:bg-stone-100 dark:hover:bg-stone-700 rounded-r-lg">-</button>
-              <input type="number" id="modal-qty" value="1" min="1" max="99" class="w-12 text-center text-sm font-bold bg-transparent focus:outline-none" readonly>
-              <button onclick="changeModalQty(1)" class="w-9 h-9 flex items-center justify-center text-stone-600 hover:bg-stone-100 dark:hover:bg-stone-700 rounded-l-lg">+</button>
-            </div>
-          </div>
+        <div class="flex items-baseline gap-3 mb-6">
+          <span class="price-now text-3xl font-display">${formatPrice(prod.price)}</span>
+          ${onSale ? `<span class="price-old text-lg">${formatPrice(prod.originalPrice)}</span>` : ''}
         </div>
 
-        <!-- Action Buttons -->
-        <div class="flex flex-col sm:flex-row gap-3 pt-4 border-t border-stone-100 dark:border-stone-800">
-          <button onclick="submitModalAddToCart()" class="btn-primary flex-1 py-3 px-6 text-sm flex items-center justify-center gap-2">
-            <i class="fa-solid fa-cart-plus"></i>
-            <span>${isAr ? 'إضافة إلى السلة' : 'Add to Cart'}</span>
-          </button>
-          <button onclick="directOrderOnWhatsApp('${prod.id}')" class="btn-whatsapp py-3 px-6 text-sm flex items-center justify-center gap-2">
-            <i class="fa-brands fa-whatsapp text-lg"></i>
-            <span>${isAr ? 'طلب فوري بالواتساب' : 'Direct WhatsApp'}</span>
+        ${prod.isCustomizable ? `
+          <div class="mb-5">
+            <label for="pp-custom" class="block text-sm font-bold mb-2">
+              ${customLabel || (isAr ? 'الاسم أو العبارة المطلوبة' : 'Name or text to print')}
+            </label>
+            <input type="text" id="pp-custom" value="${escapeHtml(prevCustom || '')}"
+              placeholder="${isAr ? 'مثال: نور' : 'e.g. Noor'}"
+              class="w-full px-5 py-3 rounded-full border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-800 text-sm focus:outline-none focus:ring-2 focus:ring-brand-300">
+          </div>` : ''}
+
+        <div id="pp-buy-buttons">
+          <div class="flex items-center gap-3 mb-3">
+            <div class="qty-stepper">
+              <button onclick="changePageQty(1)" aria-label="+">+</button>
+              <input type="number" id="pp-qty" value="${Number(prevQty) || 1}" min="1" readonly>
+              <button onclick="changePageQty(-1)" aria-label="-">−</button>
+            </div>
+            <button onclick="addToCartFromProductPage()" class="btn-outline flex-1 h-[50px] text-base">
+              ${isAr ? 'أضف للسلة' : 'Add to cart'}
+            </button>
+            <button onclick="toggleFavorite('${prod.id}')" class="w-[50px] h-[50px] rounded-full border border-stone-200 dark:border-stone-700 flex items-center justify-center flex-shrink-0 hover:text-brand-500"
+              title="${isAr ? 'المفضلة' : 'Wishlist'}">
+              <i class="${isFav ? 'fa-solid fa-heart text-brand-500' : 'fa-regular fa-heart'}"></i>
+            </button>
+          </div>
+          <button onclick="buyNowFromProductPage()" class="btn-primary w-full h-[50px] text-base">
+            ${isAr ? 'اطلب الآن' : 'Buy now'}
           </button>
         </div>
+
+        <div class="grid grid-cols-3 gap-2 mt-6 text-center text-xs font-bold text-stone-600 dark:text-stone-300">
+          <div class="bg-stone-50 dark:bg-stone-800/60 rounded-2xl py-3"><i class="fa-solid fa-truck-fast text-brand-500 block text-base mb-1"></i>${isAr ? 'شحن لكل المحافظات' : 'Nationwide shipping'}</div>
+          <div class="bg-stone-50 dark:bg-stone-800/60 rounded-2xl py-3"><i class="fa-solid fa-hand-holding-heart text-brand-500 block text-base mb-1"></i>${isAr ? 'صناعة يدوية' : 'Handmade'}</div>
+          <div class="bg-stone-50 dark:bg-stone-800/60 rounded-2xl py-3"><i class="fa-brands fa-whatsapp text-brand-500 block text-base mb-1"></i>${isAr ? 'تأكيد عبر واتساب' : 'WhatsApp confirmation'}</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tabs -->
+    <div class="mt-12">
+      <div class="inline-flex gap-1 bg-stone-100 dark:bg-stone-800 p-1.5 rounded-2xl mb-5">
+        <button class="pp-tab is-active" data-tab="desc" onclick="selectProductTab('desc')">${isAr ? 'الوصف' : 'Description'}</button>
+        <button class="pp-tab" data-tab="order" onclick="selectProductTab('order')">${isAr ? 'طريقة الطلب' : 'How to order'}</button>
+      </div>
+      <div id="pp-tab-desc" class="pp-tab-panel text-stone-700 dark:text-stone-300 leading-loose max-w-3xl">${desc}</div>
+      <div id="pp-tab-order" class="pp-tab-panel hidden text-stone-700 dark:text-stone-300 leading-loose max-w-3xl">
+        ${isAr
+          ? 'أضف المنتج للسلة أو اضغط "اطلب الآن"، ثم اكتب بيانات التوصيل. سيتم تجهيز رسالة بطلبك لإرسالها إلى واتساب Nourii، ونؤكد معك التفاصيل وموعد التسليم.'
+          : 'Add the product to your cart or press "Buy now", then fill in your delivery details. Your order is sent as a WhatsApp message to Nourii, and we confirm the details and delivery date with you.'}
       </div>
     </div>
   `;
 
-  modal.classList.remove('hidden');
-  document.body.style.overflow = 'hidden';
+  // Sticky buy bar
+  const stickyImg = document.getElementById('sticky-buy-img');
+  if (stickyImg) { stickyImg.src = images[0]; stickyImg.alt = isAr ? prod.nameAr : prod.nameEn; }
+  const stickyName = document.getElementById('sticky-buy-name');
+  if (stickyName) stickyName.innerText = isAr ? prod.nameAr : prod.nameEn;
+  const stickyPrice = document.getElementById('sticky-buy-price');
+  if (stickyPrice) stickyPrice.innerText = formatPrice(prod.price);
+  setupStickyBuyBar();
+
+  // Related products from the same category
+  const related = PRODUCTS.filter(p => p.categoryId === prod.categoryId && p.id !== prod.id).slice(0, 4);
+  const relatedSection = document.getElementById('related-section');
+  const relatedGrid = document.getElementById('related-grid');
+  if (relatedSection && relatedGrid) {
+    relatedSection.classList.toggle('hidden', related.length === 0);
+    relatedGrid.innerHTML = related.map(productCardHTML).join('');
+  }
 }
 
-function closeProductModal() {
-  const modal = document.getElementById('product-modal');
-  if (modal) modal.classList.add('hidden');
-  document.body.style.overflow = '';
-  currentModalProduct = null;
+let stickyObserver = null;
+
+function setupStickyBuyBar() {
+  const bar = document.getElementById('sticky-buy-bar');
+  const buttons = document.getElementById('pp-buy-buttons');
+  if (!bar || !buttons || !('IntersectionObserver' in window)) return;
+  if (stickyObserver) stickyObserver.disconnect();
+
+  stickyObserver = new IntersectionObserver(([entry]) => {
+    // Show the bar only once the main buttons have scrolled up out of view
+    const show = !entry.isIntersecting && entry.boundingClientRect.top < 0;
+    bar.classList.toggle('is-visible', show);
+    document.body.classList.toggle('has-sticky-buy', show);
+  });
+  stickyObserver.observe(buttons);
 }
 
-function changeModalQty(delta) {
-  const qtyInput = document.getElementById('modal-qty');
+function selectGalleryImage(index) {
+  const thumbs = document.querySelectorAll('.gallery-thumb');
+  const main = document.getElementById('pp-main-img');
+  const thumb = thumbs[index];
+  if (!main || !thumb) return;
+  main.src = thumb.querySelector('img').src;
+  thumbs.forEach(t => t.classList.toggle('is-active', t === thumb));
+}
+
+function selectProductTab(tab) {
+  document.querySelectorAll('.pp-tab').forEach(b => b.classList.toggle('is-active', b.dataset.tab === tab));
+  document.querySelectorAll('.pp-tab-panel').forEach(p => p.classList.toggle('hidden', p.id !== `pp-tab-${tab}`));
+}
+
+function changePageQty(delta) {
+  const qtyInput = document.getElementById('pp-qty');
   if (!qtyInput) return;
-  let val = parseInt(qtyInput.value) || 1;
-  val = Math.max(1, val + delta);
-  qtyInput.value = val;
+  qtyInput.value = Math.max(1, (parseInt(qtyInput.value) || 1) + delta);
 }
 
-function submitModalAddToCart() {
-  if (!currentModalProduct) return;
-  const qtyInput = document.getElementById('modal-qty');
-  const customInput = document.getElementById('modal-custom-text');
-  
-  const qty = qtyInput ? parseInt(qtyInput.value) || 1 : 1;
-  const customText = customInput ? customInput.value.trim() : '';
+function readProductPageSelection() {
+  const qty = parseInt(document.getElementById('pp-qty')?.value) || 1;
+  const customText = (document.getElementById('pp-custom')?.value || '').trim();
+  return { qty, customText };
+}
 
-  addItemToCart(currentModalProduct, qty, customText);
-  closeProductModal();
+function addToCartFromProductPage() {
+  if (!currentPageProduct) return;
+  const { qty, customText } = readProductPageSelection();
+  addItemToCart(currentPageProduct, qty, customText);
+}
+
+// "Buy now": put this item in the cart and go straight to the delivery form
+function buyNowFromProductPage() {
+  if (!currentPageProduct) return;
+  const { qty, customText } = readProductPageSelection();
+  addItemToCart(currentPageProduct, qty, customText, { silent: true });
+  openCheckoutModal();
 }
 
 function quickAddToCart(productId) {
   const prod = PRODUCTS.find(p => p.id === productId);
-  if (prod) {
-    if (prod.isCustomizable) {
-      openProductModal(productId);
-    } else {
-      addItemToCart(prod, 1, '');
-    }
+  if (!prod) return;
+  if (prod.isCustomizable) {
+    // Personalised items need the name/text field on the product page
+    window.location.href = productUrl(prod.id);
+  } else {
+    addItemToCart(prod, 1, '');
   }
 }
 
 // CART MANAGEMENT
-function addItemToCart(product, qty, customText) {
+function addItemToCart(product, qty, customText, { silent = false } = {}) {
   const existingIndex = APP_STATE.cart.findIndex(
     item => item.id === product.id && item.customText === customText
   );
@@ -568,16 +645,17 @@ function addItemToCart(product, qty, customText) {
   }
 
   saveCart();
+  if (silent) return;
   const isAr = APP_STATE.lang === 'ar';
   showToast(
-    isAr 
-      ? `تمت إضافة "${product.nameAr}" إلى السلة بنجاح 🛍️` 
+    isAr
+      ? `تمت إضافة "${product.nameAr}" إلى السلة بنجاح 🛍️`
       : `Added "${product.nameEn}" to cart 🛍️`,
     'success'
   );
 
-  // Pulse animation on cart buttons
-  document.querySelectorAll('.floating-cart-btn, #nav-cart-btn').forEach(btn => {
+  // Pulse animation on the header cart button
+  document.querySelectorAll('#nav-cart-btn').forEach(btn => {
     btn.classList.add('pulse-animation');
     setTimeout(() => btn.classList.remove('pulse-animation'), 400);
   });
@@ -616,14 +694,6 @@ function updateCartBadge() {
   document.querySelectorAll('.cart-badge-count').forEach(el => {
     el.innerText = totalCount;
   });
-
-  const floatingTotalEl = document.getElementById('floating-cart-total');
-  if (floatingTotalEl) {
-    const isAr = APP_STATE.lang === 'ar';
-    const currency = isAr ? APP_STATE.settings.currencyAr : APP_STATE.settings.currencyEn;
-    const subtotal = APP_STATE.cart.reduce((sum, item) => sum + item.price * item.qty, 0);
-    floatingTotalEl.innerText = `${subtotal} ${currency}`;
-  }
 }
 
 // CART DRAWER
@@ -655,14 +725,14 @@ function renderCartDrawer() {
   if (APP_STATE.cart.length === 0) {
     itemsContainer.innerHTML = `
       <div class="py-20 text-center">
-        <div class="w-20 h-20 mx-auto rounded-full bg-pink-50 dark:bg-stone-800 flex items-center justify-center text-pink-400 text-3xl mb-4">
-          <i class="fa-solid fa-cart-shopping"></i>
+        <div class="w-20 h-20 mx-auto rounded-full bg-brand-50 dark:bg-stone-800 flex items-center justify-center text-brand-400 text-3xl mb-4">
+          <i class="fa-solid fa-bag-shopping"></i>
         </div>
-        <p class="font-bold text-lg mb-1">${isAr ? 'سلة المشتريات فارغة' : 'Your cart is empty'}</p>
-        <p class="text-xs text-stone-500 mb-6">${isAr ? 'تصفح أقسام Nourii وأضف منتجاتك المفضلة الآن.' : 'Explore Nourii collections and add your favorite items.'}</p>
-        <button onclick="toggleCartDrawer()" class="btn-primary px-6 py-2.5 text-xs">
+        <p class="font-display font-bold text-xl mb-1">${isAr ? 'سلة المشتريات فارغة' : 'Your cart is empty'}</p>
+        <p class="text-sm text-stone-500 mb-6">${isAr ? 'تصفح أقسام Nourii وأضف منتجاتك المفضلة.' : 'Explore Nourii collections and add your favorite items.'}</p>
+        <a href="index.html#catalog-section" onclick="toggleCartDrawer()" class="btn-primary h-11 px-7 text-sm inline-flex items-center">
           ${isAr ? 'تصفح المنتجات' : 'Start Shopping'}
-        </button>
+        </a>
       </div>
     `;
     if (subtotalEl) subtotalEl.innerText = `0 ${currency}`;
@@ -676,16 +746,18 @@ function renderCartDrawer() {
   itemsContainer.innerHTML = APP_STATE.cart.map((item, index) => {
     const itemTotal = item.price * item.qty;
     subtotal += itemTotal;
-    const name = isAr ? item.nameAr : item.nameEn;
+    const name = escapeHtml(isAr ? item.nameAr : item.nameEn);
 
     return `
-      <div class="flex gap-4 p-4 rounded-xl border border-stone-100 dark:border-stone-800 bg-white dark:bg-stone-800/50 relative">
-        <img src="${item.image}" alt="${name}" class="w-20 h-20 rounded-lg object-cover flex-shrink-0">
-        
+      <div class="flex gap-4 pb-4 border-b border-stone-100 dark:border-stone-800 relative">
+        <a href="${productUrl(item.id)}" class="flex-shrink-0">
+          <img src="${item.image}" alt="${name}" class="w-20 h-20 rounded-2xl object-cover">
+        </a>
+
         <div class="flex-1 flex flex-col justify-between">
           <div>
             <div class="flex items-start justify-between gap-2">
-              <h4 class="font-bold text-sm leading-tight">${name}</h4>
+              <a href="${productUrl(item.id)}" class="font-display font-bold text-[15px] leading-tight hover:text-brand-500">${name}</a>
               <button onclick="removeCartItem(${index})" class="text-stone-400 hover:text-red-500 transition-colors p-1 text-xs">
                 <i class="fa-solid fa-trash-can"></i>
               </button>
@@ -694,19 +766,19 @@ function renderCartDrawer() {
             ${item.customText ? `
               <div class="text-[11px] text-pink-600 dark:text-pink-400 bg-pink-50 dark:bg-stone-700/50 px-2 py-0.5 rounded mt-1 inline-flex items-center gap-1">
                 <i class="fa-solid fa-pen-nib text-[9px]"></i>
-                <span>${item.customText}</span>
+                <span>${escapeHtml(item.customText)}</span>
               </div>
             ` : ''}
           </div>
 
           <div class="flex items-center justify-between mt-3">
-            <span class="text-sm font-black text-pink-600">${itemTotal} ${currency}</span>
+            <span class="price-now text-sm">${itemTotal} ${currency}</span>
 
             <!-- Quantity controls -->
-            <div class="flex items-center border border-stone-200 dark:border-stone-700 rounded-md bg-stone-50 dark:bg-stone-800">
-              <button onclick="updateCartItemQty(${index}, -1)" class="w-6 h-6 flex items-center justify-center text-xs text-stone-600 hover:bg-stone-200 dark:hover:bg-stone-700">-</button>
-              <span class="w-8 text-center text-xs font-bold">${item.qty}</span>
-              <button onclick="updateCartItemQty(${index}, 1)" class="w-6 h-6 flex items-center justify-center text-xs text-stone-600 hover:bg-stone-200 dark:hover:bg-stone-700">+</button>
+            <div class="flex items-center border border-stone-200 dark:border-stone-700 rounded-full">
+              <button onclick="updateCartItemQty(${index}, 1)" class="w-8 h-8 flex items-center justify-center text-sm hover:text-brand-500">+</button>
+              <span class="w-6 text-center text-sm font-bold">${item.qty}</span>
+              <button onclick="updateCartItemQty(${index}, -1)" class="w-8 h-8 flex items-center justify-center text-sm hover:text-brand-500">−</button>
             </div>
           </div>
         </div>
@@ -834,46 +906,16 @@ function executeWhatsAppOrder() {
   const encodedText = encodeURIComponent(message);
   const whatsappUrl = `https://wa.me/${cleanPhone}?text=${encodedText}`;
 
-  // Close modals
+  // Close modals (the cart drawer is not open when ordering via "Buy now")
   closeCheckoutModal();
-  toggleCartDrawer();
+  const cartDrawer = document.getElementById('cart-drawer');
+  if (cartDrawer && !cartDrawer.classList.contains('hidden')) toggleCartDrawer();
 
   // Clear cart after order
   clearCart();
 
   showToast(isAr ? 'جاري توجيهك إلى واتساب لإرسال الطلب...' : 'Redirecting to WhatsApp...', 'success');
   window.open(whatsappUrl, '_blank');
-}
-
-// DIRECT BUY FOR SINGLE PRODUCT VIA WHATSAPP
-function directOrderOnWhatsApp(productId) {
-  const prod = PRODUCTS.find(p => p.id === productId);
-  if (!prod) return;
-
-  const customInput = document.getElementById('modal-custom-text');
-  const qtyInput = document.getElementById('modal-qty');
-  const qty = qtyInput ? parseInt(qtyInput.value) || 1 : 1;
-  const custom = customInput ? customInput.value.trim() : '';
-
-  const isAr = APP_STATE.lang === 'ar';
-  const currency = isAr ? APP_STATE.settings.currencyAr : APP_STATE.settings.currencyEn;
-  const name = isAr ? prod.nameAr : prod.nameEn;
-  const total = prod.price * qty;
-
-  let msg = `*🌸 استفسار / طلب مباشر من متجر Nourii 🌸*\n\n`;
-  msg += `أود الاستفسار وطلب هذا المنتج:\n`;
-  msg += `▫️ *المنتج:* ${name}\n`;
-  msg += `▫️ *الكمية:* ${qty}\n`;
-  msg += `▫️ *السعر:* ${total} ${currency}\n`;
-  if (custom) {
-    msg += `▫️ *التخصيص والاسم المطلوب:* "${custom}"\n`;
-  }
-  msg += `\nيرجى إفادتي بإمكانية التنفيذ وموعد التسليم وشكراً!`;
-
-  const cleanPhone = APP_STATE.settings.whatsappNumber.replace(/[^0-9]/g, '');
-  const url = `https://wa.me/${cleanPhone}?text=${encodeURIComponent(msg)}`;
-  closeProductModal();
-  window.open(url, '_blank');
 }
 
 // SMART GIVEAWAYS ESTIMATOR (صانع التوزيعات الذكي للمناسبات)
@@ -1066,6 +1108,7 @@ function saveStoreSettings() {
   }
 
   localStorage.setItem('nourii_settings', JSON.stringify(APP_STATE.settings));
+  updateWhatsAppLinks();
   closeSettingsModal();
   showToast(APP_STATE.lang === 'ar' ? 'تم حفظ الإعدادات بنجاح!' : 'Settings saved successfully!', 'success');
 }
@@ -1125,7 +1168,6 @@ function setupEventListeners() {
   // Keyboard shortcut for closing modals with Escape key
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') {
-      closeProductModal();
       closeCheckoutModal();
       closeSettingsModal();
       const cartDrawer = document.getElementById('cart-drawer');

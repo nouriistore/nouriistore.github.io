@@ -4,403 +4,119 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Nourii | متجر نوري للمنتجات اليدوية والتوزيعات والكونكريت</title>
-  
+
   <!-- Meta SEO -->
   <meta name="description" content="متجر Nourii (نوري) - وجهتكم الأولى للأعمال الفنية اليدوية، كونكريت للتلوين، كتب تلوين، توزيعات مناسبات، نوت بوك، ومطبوعات تعليمية ودينية فاخرة.">
   <meta name="keywords" content="Nourii, نوري, كونكريت للتلوين, كتب تلوين, توزيعات مناسبات, نوت بوك, مطبوعات دينية, ادوات تعليمية للاطفال, استيكرز, هاند ميد">
 
-  <!-- Tailwind CSS CDN -->
+  <!-- Tailwind CSS CDN + shared theme -->
   <script src="https://cdn.tailwindcss.com"></script>
-  <script>
-    tailwind.config = {
-      darkMode: ['class', '[data-theme="dark"]'],
-      theme: {
-        extend: {
-          colors: {
-            brand: {
-              50: '#fdf3f4',
-              100: '#fbe7ea',
-              200: '#f6d3d8',
-              300: '#eeb2bc',
-              400: '#e18796',
-              500: '#c96576',
-              600: '#b44f60',
-              700: '#973c4c',
-              800: '#7f3542',
-              900: '#6d303b',
-            },
-            sand: {
-              50: '#faf7f3',
-              100: '#f5efe6',
-              200: '#ebdece',
-              300: '#dec7b0',
-              400: '#cfa88e',
-              500: '#b8896d',
-            }
-          }
-        }
-      }
-    }
-  </script>
+  <script src="tailwind-config.js?v=20261101"></script>
 
   <!-- Font Awesome 6 -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
 
   <!-- Custom CSS -->
-  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="styles.css?v=20261101">
 </head>
-<body class="bg-[#fdfaf6] dark:bg-[#181516] text-[#2b2325] dark:text-[#f7f2f3] transition-colors duration-300">
+<body>
 
-  <!-- ================= TOP NOTIFICATION BAR ================= -->
-  <div class="bg-gradient-to-r from-pink-600 via-rose-500 to-amber-600 text-white text-xs py-2 px-4 text-center font-medium flex items-center justify-center gap-3">
-    <span>✨ خصم 10% على جميع الطلبات باستخدام الكود: <strong class="bg-white/20 px-2 py-0.5 rounded tracking-wider">NOURII10</strong> ✨</span>
-    <span class="hidden md:inline">|</span>
-    <span class="hidden md:inline">📦 شحن وتوصيل لكافة المحافظات</span>
-  </div>
+  <div id="site-header"></div>
 
-  <!-- ================= NAVIGATION HEADER ================= -->
-  <header class="sticky top-0 z-40 glass-header">
-    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between gap-4">
-      
-      <!-- Brand Logo -->
-      <a href="#" class="flex items-center gap-3 group">
-        <div class="w-12 h-12 rounded-2xl bg-gradient-to-tr from-brand-600 to-amber-500 flex items-center justify-center text-white shadow-md shadow-brand-500/20 group-hover:scale-105 transition-transform">
-          <span class="font-black text-2xl tracking-tighter">N</span>
-        </div>
-        <div>
-          <span class="text-2xl font-black tracking-tight text-brand-600 dark:text-brand-400 block leading-tight font-serif">Nourii</span>
-          <span class="text-[11px] font-bold text-stone-500 dark:text-stone-400 block tracking-wider">نوري • للفنون والهدايا</span>
-        </div>
-      </a>
-
-      <!-- Desktop Nav Links -->
-      <nav class="hidden lg:flex items-center gap-7 text-sm font-bold text-stone-700 dark:text-stone-300">
-        <a href="#hero" class="hover:text-brand-600 dark:hover:text-brand-400 transition-colors">الرئيسية</a>
-        <a href="#categories-showcase" class="hover:text-brand-600 dark:hover:text-brand-400 transition-colors">الأقسام</a>
-        <a href="#catalog-section" class="hover:text-brand-600 dark:hover:text-brand-400 transition-colors">المنتجات</a>
-        <a href="#giveaways-estimator" class="hover:text-brand-600 dark:hover:text-brand-400 transition-colors flex items-center gap-1 text-amber-600 dark:text-amber-400">
-          <i class="fa-solid fa-sparkles text-xs"></i>
-          <span>صانع التوزيعات الذكي</span>
-        </a>
-        <a href="#reviews-section" class="hover:text-brand-600 dark:hover:text-brand-400 transition-colors">آراء العملاء</a>
-        <a href="#faqs-section" class="hover:text-brand-600 dark:hover:text-brand-400 transition-colors">الأسئلة الشائعة</a>
-      </nav>
-
-      <!-- Action Buttons -->
-      <div class="flex items-center gap-2 sm:gap-3">
-        <!-- Language Switcher -->
-        <button onclick="toggleLanguage()" class="p-2 sm:px-3 sm:py-2 rounded-xl border border-stone-200 dark:border-stone-700 hover:bg-stone-100 dark:hover:bg-stone-800 text-xs font-bold transition-all flex items-center gap-1.5" title="تبديل اللغة">
-          <i class="fa-solid fa-globe text-stone-500"></i>
-          <span id="lang-toggle-text" class="hidden sm:inline">English</span>
-        </button>
-
-        <!-- Theme Toggle -->
-        <button onclick="toggleTheme()" class="w-10 h-10 rounded-xl border border-stone-200 dark:border-stone-700 hover:bg-stone-100 dark:hover:bg-stone-800 flex items-center justify-center transition-all" title="تغيير المظهر">
-          <i id="theme-toggle-icon" class="fa-solid fa-moon text-stone-600 dark:text-stone-300"></i>
-        </button>
-
-        <!-- Wishlist Button -->
-        <button onclick="toggleFavoritesView()" class="relative w-10 h-10 rounded-xl border border-stone-200 dark:border-stone-700 hover:bg-stone-100 dark:hover:bg-stone-800 flex items-center justify-center transition-all text-stone-600 dark:text-stone-300" title="المفضلة">
-          <i class="fa-regular fa-heart"></i>
-          <span id="fav-count-badge" class="absolute -top-1.5 -right-1.5 bg-red-500 text-white text-[10px] font-bold w-5 h-5 rounded-full flex items-center justify-center hidden">0</span>
-        </button>
-
-        <!-- Store Settings (Edit WhatsApp number etc.) -->
-        <button onclick="openSettingsModal()" class="w-10 h-10 rounded-xl border border-stone-200 dark:border-stone-700 hover:bg-stone-100 dark:hover:bg-stone-800 flex items-center justify-center transition-all text-stone-500 hover:text-stone-800 dark:hover:text-stone-200" title="إعدادات المتجر ورقم الواتساب">
-          <i class="fa-solid fa-gear"></i>
-        </button>
-
-        <!-- Cart Button -->
-        <button id="nav-cart-btn" onclick="toggleCartDrawer()" class="btn-primary h-10 px-4 flex items-center gap-2.5 text-xs">
-          <i class="fa-solid fa-bag-shopping"></i>
-          <span class="cart-badge-count font-bold bg-white text-brand-600 rounded-full w-5 h-5 flex items-center justify-center text-[11px]">0</span>
-          <span class="hidden md:inline">السلة</span>
-        </button>
-      </div>
-
-    </div>
-  </header>
-
-  <!-- ================= HERO SECTION ================= -->
-  <section id="hero" class="relative overflow-hidden pt-12 pb-20 lg:pt-20 lg:pb-28">
-    <div class="hero-glow top-0 right-1/4"></div>
-    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
-      <div class="grid grid-cols-1 lg:grid-cols-12 gap-12 items-center">
-        
-        <!-- Text Column -->
-        <div class="lg:col-span-7 text-center lg:text-start">
-          <div class="inline-flex items-center gap-2 bg-pink-100 dark:bg-stone-800/80 text-brand-600 dark:text-brand-300 px-4 py-1.5 rounded-full text-xs font-bold mb-6 border border-pink-200 dark:border-stone-700">
-            <i class="fa-solid fa-wand-magic-sparkles text-amber-500"></i>
-            <span>صناعة يدوية بكل حب وتفاصيل مخصصة باسمك</span>
-          </div>
-
-          <h1 class="text-4xl sm:text-5xl lg:text-6xl font-black tracking-tight leading-[1.2] mb-6">
-            عالم <span class="text-transparent bg-clip-text bg-gradient-to-r from-brand-600 via-rose-500 to-amber-600">Nourii</span> للإبداع، الفنون والهدايا المميزة
+  <main>
+    <!-- ================= HERO ================= -->
+    <section id="hero" class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-8 lg:pt-12">
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12 items-center bg-brand-50 dark:bg-stone-900 rounded-[28px] p-6 sm:p-10 lg:p-12">
+        <div class="text-center lg:text-start order-2 lg:order-1">
+          <span class="inline-block bg-white dark:bg-stone-800 text-brand-600 dark:text-brand-300 px-4 py-1.5 rounded-full text-xs font-bold mb-5">
+            صناعة يدوية بكل حب وتفاصيل مخصصة باسمك
+          </span>
+          <h1 class="text-4xl sm:text-5xl font-bold leading-[1.3] mb-5">
+            عالم <span class="text-brand-500">Nourii</span> للإبداع والهدايا المميزة
           </h1>
-
-          <p class="text-base sm:text-lg text-stone-600 dark:text-stone-300 leading-relaxed mb-8 max-w-2xl mx-auto lg:mx-0">
-            أطقم كونكريت للتلوين تنمي مهارات أطفالك، توزيعات ملكية للمناسبات بالأسماء، دفاتر ومفكرات منقوشة بالذهب، ومطبوعات فاخرة تُخلد أجمل ذكرياتكم السعيدة.
+          <p class="text-base text-stone-600 dark:text-stone-300 leading-relaxed mb-8 max-w-xl mx-auto lg:mx-0">
+            أطقم كونكريت للتلوين تنمي مهارات أطفالك، توزيعات للمناسبات بالأسماء، دفاتر منقوشة بالذهب، ومطبوعات تُخلد أجمل ذكرياتكم.
           </p>
-
-          <!-- Action Buttons -->
-          <div class="flex flex-wrap items-center justify-center lg:justify-start gap-4 mb-10">
-            <a href="#catalog-section" class="btn-primary px-8 py-3.5 text-sm flex items-center gap-2 shadow-lg">
-              <i class="fa-solid fa-store"></i>
-              <span>تصفح المنتجات الآن</span>
+          <div class="flex flex-wrap items-center justify-center lg:justify-start gap-3">
+            <a href="#catalog-section" class="btn-primary h-[50px] px-8 text-base inline-flex items-center gap-2">
+              <span>تسوق الآن</span>
             </a>
-            <a href="#giveaways-estimator" class="px-7 py-3.5 rounded-full border border-stone-300 dark:border-stone-700 bg-white dark:bg-stone-800 hover:bg-stone-50 dark:hover:bg-stone-700 text-sm font-bold flex items-center gap-2 transition-all shadow-sm">
-              <i class="fa-solid fa-calculator text-amber-500"></i>
-              <span>صانع التوزيعات الذكي</span>
+            <a href="#giveaways-estimator" class="btn-outline h-[50px] px-7 text-base inline-flex items-center gap-2">
+              <span>صانع التوزيعات</span>
             </a>
           </div>
 
-          <!-- Feature Bullets -->
-          <div class="grid grid-cols-2 sm:grid-cols-4 gap-4 pt-6 border-t border-stone-200 dark:border-stone-800/80">
-            <div class="flex items-center gap-2.5">
-              <div class="w-8 h-8 rounded-lg bg-pink-100 dark:bg-stone-800 text-brand-600 flex items-center justify-center text-xs">
-                <i class="fa-solid fa-truck-fast"></i>
-              </div>
-              <span class="text-xs font-bold">شحن لجميع المحافظات</span>
-            </div>
-            <div class="flex items-center gap-2.5">
-              <div class="w-8 h-8 rounded-lg bg-pink-100 dark:bg-stone-800 text-brand-600 flex items-center justify-center text-xs">
-                <i class="fa-solid fa-pen-nib"></i>
-              </div>
-              <span class="text-xs font-bold">تخصيص كامل بالأسماء</span>
-            </div>
-            <div class="flex items-center gap-2.5">
-              <div class="w-8 h-8 rounded-lg bg-pink-100 dark:bg-stone-800 text-brand-600 flex items-center justify-center text-xs">
-                <i class="fa-solid fa-heart"></i>
-              </div>
-              <span class="text-xs font-bold">شغل هاند ميد متقن</span>
-            </div>
-            <div class="flex items-center gap-2.5">
-              <div class="w-8 h-8 rounded-lg bg-pink-100 dark:bg-stone-800 text-brand-600 flex items-center justify-center text-xs">
-                <i class="fa-brands fa-whatsapp text-emerald-600"></i>
-              </div>
-              <span class="text-xs font-bold">طلب سهل بالواتساب</span>
-            </div>
+          <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-8 text-xs font-bold text-stone-600 dark:text-stone-300">
+            <div class="flex items-center justify-center lg:justify-start gap-2"><i class="fa-solid fa-truck-fast text-brand-500"></i>شحن لكل المحافظات</div>
+            <div class="flex items-center justify-center lg:justify-start gap-2"><i class="fa-solid fa-pen-nib text-brand-500"></i>تخصيص بالأسماء</div>
+            <div class="flex items-center justify-center lg:justify-start gap-2"><i class="fa-solid fa-heart text-brand-500"></i>شغل هاند ميد</div>
+            <div class="flex items-center justify-center lg:justify-start gap-2"><i class="fa-brands fa-whatsapp text-brand-500"></i>طلب سهل بالواتساب</div>
           </div>
         </div>
 
-        <!-- Visual Mosaic Column -->
-        <div class="lg:col-span-5 relative">
-          <div class="relative mx-auto max-w-md lg:max-w-none">
-            <!-- Main Hero Card -->
-            <div class="nourii-card p-3 overflow-hidden rounded-3xl bg-white dark:bg-stone-800 shadow-2xl">
-              <img src="assets/images/concrete-coloring.jpg" alt="كونكريت للتلوين من نوري" class="w-full h-80 object-cover rounded-2xl">
-              <div class="p-4 flex items-center justify-between">
-                <div>
-                  <h3 class="font-black text-base">كونكريت الفنان الصغير 🎨</h3>
-                  <p class="text-xs text-stone-500">نشاط إبداعي يملأ أوقات أطفالك بالبهجة</p>
-                </div>
-                <button onclick="selectCategory('concrete')" class="btn-primary px-4 py-2 text-xs">
-                  استكشف القسم
-                </button>
-              </div>
-            </div>
-
-            <!-- Floating Mini Card 1 -->
-            <div class="absolute -bottom-6 -right-6 bg-white/95 dark:bg-stone-800/95 backdrop-blur-md p-3.5 rounded-2xl border border-stone-200 dark:border-stone-700 shadow-xl hidden sm:flex items-center gap-3">
-              <img src="assets/images/notebooks.jpg" alt="نوت بوك" class="w-12 h-12 rounded-xl object-cover">
-              <div>
-                <span class="text-xs font-bold block">دفاتر ذهبية مخصصة ✨</span>
-                <span class="text-[11px] text-pink-600 font-bold">باسمك المميز</span>
-              </div>
-            </div>
-
-            <!-- Floating Mini Card 2 -->
-            <div class="absolute -top-6 -left-6 bg-white/95 dark:bg-stone-800/95 backdrop-blur-md p-3.5 rounded-2xl border border-stone-200 dark:border-stone-700 shadow-xl hidden sm:flex items-center gap-3">
-              <img src="assets/images/event-favors.jpg" alt="توزيعات مناسبات" class="w-12 h-12 rounded-xl object-cover">
-              <div>
-                <span class="text-xs font-bold block">توزيعات المواليد والأعراس 💍</span>
-                <span class="text-[11px] text-amber-600 font-bold">تصاميم ملكية راقية</span>
-              </div>
-            </div>
-
+        <div class="order-1 lg:order-2">
+          <div class="grid grid-cols-2 gap-3 sm:gap-4">
+            <img src="assets/images/concrete-coloring.jpg" alt="كونكريت للتلوين" class="col-span-2 w-full h-56 sm:h-72 object-cover rounded-2xl">
+            <img src="assets/images/notebooks.jpg" alt="نوت بوك" class="w-full h-32 sm:h-40 object-cover rounded-2xl">
+            <img src="assets/images/event-favors.jpg" alt="توزيعات مناسبات" class="w-full h-32 sm:h-40 object-cover rounded-2xl">
           </div>
         </div>
-
       </div>
-    </div>
-  </section>
+    </section>
 
-  <!-- ================= CATEGORIES SHOWCASE GRID (عينة لكل قسم) ================= -->
-  <section id="categories-showcase" class="py-16 bg-stone-100/60 dark:bg-stone-900/40 border-y border-stone-200/80 dark:border-stone-800">
-    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-      
-      <div class="text-center max-w-3xl mx-auto mb-14">
-        <span class="text-xs font-bold text-brand-600 uppercase tracking-widest block mb-2">أقسام متجر Nourii العشرة</span>
-        <h2 class="text-3xl sm:text-4xl font-black mb-4">اكتشف كل ما يلزم إبداعك ومناسباتك</h2>
-        <p class="text-stone-600 dark:text-stone-400 text-sm">اضغط على أي قسم لمعاينة المنتجات المتاحة والطلب المباشر</p>
+    <!-- ================= CATEGORIES SHOWCASE ================= -->
+    <section id="categories-showcase" class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-16">
+      <div class="text-center mb-8">
+        <h2 class="text-3xl font-bold">تسوق حسب القسم</h2>
+      </div>
+      <div id="categories-showcase-grid" class="grid grid-cols-3 sm:grid-cols-5 gap-4 sm:gap-6"></div>
+    </section>
+
+    <!-- ================= MAIN PRODUCTS CATALOG ================= -->
+    <section id="catalog-section" class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-16 scroll-mt-40">
+      <div class="flex flex-col md:flex-row md:items-end justify-between gap-5 mb-6">
+        <h2 id="catalog-title" class="text-3xl font-bold">جميع المنتجات</h2>
+
+        <div class="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+          <div class="relative w-full sm:w-64">
+            <i class="fa-solid fa-magnifying-glass absolute top-1/2 -translate-y-1/2 start-4 text-stone-400 text-xs"></i>
+            <input type="text" id="search-input" placeholder="ابحث في المنتجات..."
+              class="w-full ps-10 pe-4 py-2.5 rounded-full border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-800 text-sm focus:outline-none focus:ring-2 focus:ring-brand-300">
+          </div>
+          <select id="sort-select" class="px-4 py-2.5 rounded-full border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-800 text-sm font-bold focus:outline-none focus:ring-2 focus:ring-brand-300">
+            <option value="popular">الأكثر طلباً</option>
+            <option value="price-asc">السعر: من الأقل للأعلى</option>
+            <option value="price-desc">السعر: من الأعلى للأقل</option>
+            <option value="rating">الأعلى تقييماً</option>
+          </select>
+        </div>
       </div>
 
-      <!-- Grid of 10 Categories -->
-      <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4 sm:gap-6">
-        
-        <!-- 1. Concrete -->
-        <div onclick="selectCategory('concrete')" class="nourii-card cursor-pointer p-3 flex flex-col group text-center">
-          <div class="h-36 w-full rounded-xl overflow-hidden mb-3 bg-stone-100">
-            <img src="assets/images/concrete-coloring.jpg" alt="كونكريت للتلوين" class="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500">
-          </div>
-          <h3 class="font-bold text-sm mb-1 group-hover:text-brand-600 transition-colors">كونكريت للتلوين</h3>
-          <span class="text-[11px] text-stone-500">أشكال ومجسمات جبسية</span>
-        </div>
+      <!-- Category filter chips -->
+      <div id="categories-container" class="flex items-center gap-2 overflow-x-auto pb-3 mb-5 no-scrollbar"></div>
 
-        <!-- 2. Coloring Books -->
-        <div onclick="selectCategory('coloring_books')" class="nourii-card cursor-pointer p-3 flex flex-col group text-center">
-          <div class="h-36 w-full rounded-xl overflow-hidden mb-3 bg-stone-100">
-            <img src="assets/images/coloring-books.jpg" alt="كتب تلوين" class="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500">
-          </div>
-          <h3 class="font-bold text-sm mb-1 group-hover:text-brand-600 transition-colors">كتب تلوين</h3>
-          <span class="text-[11px] text-stone-500">مانديلا وسفاري للأطفال</span>
-        </div>
-
-        <!-- 3. Magnets & Brooches -->
-        <div onclick="selectCategory('magnets_brooches')" class="nourii-card cursor-pointer p-3 flex flex-col group text-center">
-          <div class="h-36 w-full rounded-xl overflow-hidden mb-3 bg-stone-100">
-            <img src="assets/images/magnets-brooches.jpg" alt="صور مغناطيس و بروش" class="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500">
-          </div>
-          <h3 class="font-bold text-sm mb-1 group-hover:text-brand-600 transition-colors">صور مغناطيس و بروش</h3>
-          <span class="text-[11px] text-stone-500">مغناطيس ثلاجة ودبابيس</span>
-        </div>
-
-        <!-- 4. Event Favors -->
-        <div onclick="selectCategory('event_favors')" class="nourii-card cursor-pointer p-3 flex flex-col group text-center">
-          <div class="h-36 w-full rounded-xl overflow-hidden mb-3 bg-stone-100">
-            <img src="assets/images/event-favors.jpg" alt="توزيعات مناسبات" class="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500">
-          </div>
-          <h3 class="font-bold text-sm mb-1 group-hover:text-brand-600 transition-colors">توزيعات مناسبات</h3>
-          <span class="text-[11px] text-stone-500">سبوع، كتب كتاب وزفاف</span>
-        </div>
-
-        <!-- 5. Notebooks -->
-        <div onclick="selectCategory('notebooks')" class="nourii-card cursor-pointer p-3 flex flex-col group text-center">
-          <div class="h-36 w-full rounded-xl overflow-hidden mb-3 bg-stone-100">
-            <img src="assets/images/notebooks.jpg" alt="نوت بوك" class="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500">
-          </div>
-          <h3 class="font-bold text-sm mb-1 group-hover:text-brand-600 transition-colors">نوت بوك</h3>
-          <span class="text-[11px] text-stone-500">مفكرات منقوشة بالذهب</span>
-        </div>
-
-        <!-- 6. Islamic Prints -->
-        <div onclick="selectCategory('islamic_prints')" class="nourii-card cursor-pointer p-3 flex flex-col group text-center">
-          <div class="h-36 w-full rounded-xl overflow-hidden mb-3 bg-stone-100">
-            <img src="assets/images/islamic-prints.jpg" alt="مطبوعات دينية" class="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500">
-          </div>
-          <h3 class="font-bold text-sm mb-1 group-hover:text-brand-600 transition-colors">مطبوعات دينية</h3>
-          <span class="text-[11px] text-stone-500">مصاحف مخمل وكروت أذكار</span>
-        </div>
-
-        <!-- 7. Educational Kids -->
-        <div onclick="selectCategory('educational_kids')" class="nourii-card cursor-pointer p-3 flex flex-col group text-center">
-          <div class="h-36 w-full rounded-xl overflow-hidden mb-3 bg-stone-100">
-            <img src="assets/images/educational-kids.jpg" alt="ادوات تعليمية للاطفال" class="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500">
-          </div>
-          <h3 class="font-bold text-sm mb-1 group-hover:text-brand-600 transition-colors">ادوات تعليمية للاطفال</h3>
-          <span class="text-[11px] text-stone-500">أبجد هوز وفلاش كاردز</span>
-        </div>
-
-        <!-- 8. Luxury Prints -->
-        <div onclick="selectCategory('luxury_prints')" class="nourii-card cursor-pointer p-3 flex flex-col group text-center">
-          <div class="h-36 w-full rounded-xl overflow-hidden mb-3 bg-stone-100">
-            <img src="assets/images/luxury-prints.jpg" alt="مطبوعات" class="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500">
-          </div>
-          <h3 class="font-bold text-sm mb-1 group-hover:text-brand-600 transition-colors">مطبوعات</h3>
-          <span class="text-[11px] text-stone-500">أختام شمع وأكياس هدايا</span>
-        </div>
-
-        <!-- 9. Stickers -->
-        <div onclick="selectCategory('stickers')" class="nourii-card cursor-pointer p-3 flex flex-col group text-center">
-          <div class="h-36 w-full rounded-xl overflow-hidden mb-3 bg-stone-100">
-            <img src="assets/images/stickers.jpg" alt="استيكرز" class="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500">
-          </div>
-          <h3 class="font-bold text-sm mb-1 group-hover:text-brand-600 transition-colors">استيكرز</h3>
-          <span class="text-[11px] text-stone-500">ملصقات فينيل وواشي تيب</span>
-        </div>
-
-        <!-- 10. Others -->
-        <div onclick="selectCategory('others')" class="nourii-card cursor-pointer p-3 flex flex-col group text-center">
-          <div class="h-36 w-full rounded-xl overflow-hidden mb-3 bg-stone-100">
-            <img src="assets/images/others.jpg" alt="اخرى" class="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500">
-          </div>
-          <h3 class="font-bold text-sm mb-1 group-hover:text-brand-600 transition-colors">اخرى</h3>
-          <span class="text-[11px] text-stone-500">ريزن، ميداليات وفواحات</span>
-        </div>
-
+      <div class="flex items-center justify-between text-sm text-stone-500 mb-6">
+        <span id="products-count">جاري التحميل...</span>
+        <button onclick="resetFilters()" class="hover:text-brand-500 transition-colors">إعادة ضبط الفلاتر</button>
       </div>
 
-    </div>
-  </section>
+      <div id="products-grid" class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-x-4 gap-y-8 sm:gap-x-6"></div>
+    </section>
 
-  <!-- ================= MAIN PRODUCTS CATALOG SECTION ================= -->
-  <section id="catalog-section" class="py-20 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-    
-    <div class="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-8">
-      <div>
-        <span class="text-xs font-bold text-brand-600 uppercase tracking-widest block mb-1">الكتالوج الكامل</span>
-        <h2 class="text-3xl font-black">منتجات Nourii المميزة</h2>
-      </div>
-
-      <!-- Search & Sort Controls -->
-      <div class="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
-        <!-- Live Search Input -->
-        <div class="relative w-full sm:w-64">
-          <i class="fa-solid fa-magnifying-glass absolute top-1/2 -translate-y-1/2 inset-inline-start-3.5 text-stone-400 text-xs"></i>
-          <input type="text" id="search-input" placeholder="ابحث في المنتجات..." 
-            class="w-full ps-10 pe-4 py-2.5 rounded-full border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-800 text-xs focus:outline-none focus:ring-2 focus:ring-brand-400">
-        </div>
-
-        <!-- Sort Select -->
-        <select id="sort-select" class="px-4 py-2.5 rounded-full border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-800 text-xs font-bold focus:outline-none focus:ring-2 focus:ring-brand-400 text-stone-700 dark:text-stone-300">
-          <option value="popular">الأكثر طلباً</option>
-          <option value="price-asc">السعر: من الأقل للأعلى</option>
-          <option value="price-desc">السعر: من الأعلى للأقل</option>
-          <option value="rating">الأعلى تقييماً</option>
-        </select>
-      </div>
-    </div>
-
-    <!-- Category Filter Chips Slider -->
-    <div id="categories-container" class="flex items-center gap-2.5 overflow-x-auto pb-4 mb-8 no-scrollbar">
-      <!-- Injected by JS -->
-    </div>
-
-    <!-- Active Filter Counter -->
-    <div class="flex items-center justify-between text-xs text-stone-500 mb-6 font-medium">
-      <span id="products-count">جاري التحميل...</span>
-      <button onclick="resetFilters()" class="hover:text-brand-600 transition-colors">إعادة ضبط الفلاتر</button>
-    </div>
-
-    <!-- Products Grid -->
-    <div id="products-grid" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-      <!-- Injected by JS -->
-    </div>
-
-  </section>
-
-  <!-- ================= SMART GIVEAWAYS ESTIMATOR (صانع التوزيعات الذكي) ================= -->
-  <section id="giveaways-estimator" class="py-20 bg-gradient-to-b from-pink-50/50 via-white to-pink-50/30 dark:from-stone-900 dark:via-stone-900/60 dark:to-stone-900 border-y border-stone-200/80 dark:border-stone-800">
-    <div class="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
-      
-      <div class="text-center max-w-2xl mx-auto mb-12">
-        <div class="inline-flex items-center gap-2 bg-amber-100 dark:bg-stone-800 text-amber-800 dark:text-amber-300 px-4 py-1.5 rounded-full text-xs font-bold mb-4">
-          <i class="fa-solid fa-calculator"></i>
-          <span>أداة ذكية للمناسبات والحفلات</span>
-        </div>
-        <h2 class="text-3xl sm:text-4xl font-black mb-3">صانع التوزيعات الذكي لحفلتك 💍🍼</h2>
+    <!-- ================= SMART GIVEAWAYS ESTIMATOR ================= -->
+    <section id="giveaways-estimator" class="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 pt-20 scroll-mt-40">
+      <div class="text-center max-w-2xl mx-auto mb-8">
+        <h2 class="text-3xl font-bold mb-3">صانع التوزيعات الذكي 💍🍼</h2>
         <p class="text-stone-600 dark:text-stone-400 text-sm leading-relaxed">
-          خطط لتوزيعات السبوع، عقد القران، الخطوبة أو التخرج بكل سهولة! اختر المناسبة والكمية واحصل على تقدير فوري مع خصومات الكميات الخاصة.
+          اختر المناسبة ونوع التوزيعات والكمية، واحصل على سعر تقديري فوري مع خصومات الكميات.
         </p>
       </div>
 
-      <div class="nourii-card p-6 sm:p-10 bg-white dark:bg-stone-800">
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-          
-          <!-- Step 1: Event Type -->
+      <div class="bg-brand-50 dark:bg-stone-900 rounded-[28px] p-6 sm:p-10">
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-5 mb-6">
           <div>
-            <label class="block text-xs font-bold text-stone-700 dark:text-stone-300 mb-2">1. نوع المناسبة السعيدة:</label>
-            <select id="gw-event" class="w-full p-3.5 rounded-xl border border-stone-200 dark:border-stone-700 bg-stone-50 dark:bg-stone-900 text-sm font-semibold focus:ring-2 focus:ring-brand-400 focus:outline-none">
+            <label class="block text-sm font-bold mb-2">1. نوع المناسبة</label>
+            <select id="gw-event" class="w-full p-3.5 rounded-xl border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-800 text-sm font-semibold focus:ring-2 focus:ring-brand-300 focus:outline-none">
               <option value="baby-shower">سبوع ومولود جديد 🍼</option>
               <option value="katb-ktab">عقد قران وزفاف 💍</option>
               <option value="engagement">حفلة خطوبة 💐</option>
@@ -409,373 +125,80 @@
               <option value="birthday">عيد ميلاد 🎂</option>
             </select>
           </div>
-
-          <!-- Step 2: Favor Style -->
           <div>
-            <label class="block text-xs font-bold text-stone-700 dark:text-stone-300 mb-2">2. نوع التوزيعات المفضل:</label>
-            <select id="gw-type" class="w-full p-3.5 rounded-xl border border-stone-200 dark:border-stone-700 bg-stone-50 dark:bg-stone-900 text-sm font-semibold focus:ring-2 focus:ring-brand-400 focus:outline-none">
-              <option value="choco-box">علب شوكولاتة راقية مع كارت مخصص (25 ج.م)</option>
+            <label class="block text-sm font-bold mb-2">2. نوع التوزيعات</label>
+            <select id="gw-type" class="w-full p-3.5 rounded-xl border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-800 text-sm font-semibold focus:ring-2 focus:ring-brand-300 focus:outline-none">
+              <option value="choco-box">علب شوكولاتة مع كارت مخصص (25 ج.م)</option>
               <option value="mini-quran">ميني مصحف مخمل وسبحة وكارت دعاء (35 ج.م)</option>
               <option value="concrete-paint">مجسمات كونكريت للتلوين مع ألوان (30 ج.م)</option>
               <option value="kids-cards">كروت تعليمية وألعاب للأطفال (22 ج.م)</option>
-              <option value="wax-envelope">أظرف كلاسيكية بختم شمع وكارت إهداء (20 ج.م)</option>
+              <option value="wax-envelope">أظرف بختم شمع وكارت إهداء (20 ج.م)</option>
             </select>
           </div>
-
-          <!-- Step 3: Quantity -->
           <div>
-            <label class="block text-xs font-bold text-stone-700 dark:text-stone-300 mb-2">3. الكمية المطلوبة:</label>
-            <select id="gw-qty" class="w-full p-3.5 rounded-xl border border-stone-200 dark:border-stone-700 bg-stone-50 dark:bg-stone-900 text-sm font-semibold focus:ring-2 focus:ring-brand-400 focus:outline-none">
+            <label class="block text-sm font-bold mb-2">3. الكمية</label>
+            <select id="gw-qty" class="w-full p-3.5 rounded-xl border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-800 text-sm font-semibold focus:ring-2 focus:ring-brand-300 focus:outline-none">
               <option value="25">25 قطعة (السعر الأساسي)</option>
-              <option value="50" selected>50 قطعة (خصم خاص 10% ✨)</option>
-              <option value="100">100 قطعة (خصم مناسبات 15% ⭐)</option>
-              <option value="200">200 قطعة (خصم كميات كبرى 20% 🔥)</option>
+              <option value="50" selected>50 قطعة (خصم 10%)</option>
+              <option value="100">100 قطعة (خصم 15%)</option>
+              <option value="200">200 قطعة (خصم 20%)</option>
             </select>
           </div>
-
         </div>
 
-        <!-- Optional Name / Date customization -->
-        <div class="mb-8">
-          <label class="block text-xs font-bold text-stone-700 dark:text-stone-300 mb-2">الاسم والتاريخ المراد طباعته على التوزيعات (اختياري):</label>
-          <input type="text" id="gw-name" placeholder="مثال: مولودنا الغالي زين - 2026/10/25" 
-            class="w-full p-3.5 rounded-xl border border-stone-200 dark:border-stone-700 bg-stone-50 dark:bg-stone-900 text-sm focus:ring-2 focus:ring-brand-400 focus:outline-none">
+        <div class="mb-6">
+          <label class="block text-sm font-bold mb-2">الاسم والتاريخ المراد طباعته (اختياري)</label>
+          <input type="text" id="gw-name" placeholder="مثال: مولودنا الغالي زين - 2026/10/25"
+            class="w-full p-3.5 rounded-xl border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-800 text-sm focus:ring-2 focus:ring-brand-300 focus:outline-none">
         </div>
 
-        <!-- Calculate Trigger Button -->
-        <div class="flex justify-center mb-8">
-          <button id="gw-calc-btn" class="btn-primary px-10 py-3.5 text-sm flex items-center gap-2">
-            <i class="fa-solid fa-calculator"></i>
-            <span>حساب التكلفة وعرض السعر</span>
-          </button>
+        <div class="flex justify-center mb-6">
+          <button id="gw-calc-btn" class="btn-primary h-[50px] px-10 text-base">احسب التكلفة</button>
         </div>
 
-        <!-- Result Card -->
-        <div id="gw-result-card" class="bg-gradient-to-r from-pink-50 to-amber-50 dark:from-stone-900 dark:to-stone-900 p-6 rounded-2xl border border-pink-200 dark:border-stone-700 flex flex-col sm:flex-row items-center justify-between gap-6">
+        <div id="gw-result-card" class="bg-white dark:bg-stone-800 p-6 rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-5">
           <div class="text-center sm:text-start">
             <div class="flex items-center gap-2 justify-center sm:justify-start mb-1">
-              <span id="gw-discount-badge" class="bg-emerald-100 text-emerald-700 text-xs font-bold px-2.5 py-0.5 rounded-full">خصم خاص 10%</span>
-              <span class="text-xs text-stone-500">سعر القطعة بعد الخصم: <strong id="gw-unit-price" class="text-stone-800 dark:text-stone-200">--</strong></span>
+              <span id="gw-discount-badge" class="bg-brand-100 text-brand-700 text-xs font-bold px-2.5 py-0.5 rounded-full">خصم خاص 10%</span>
+              <span class="text-xs text-stone-500">سعر القطعة: <strong id="gw-unit-price" class="text-stone-800 dark:text-stone-200">--</strong></span>
             </div>
             <div class="flex items-baseline gap-2 justify-center sm:justify-start">
-              <span class="text-xs font-bold text-stone-500">الإجمالي التقديري:</span>
-              <span id="gw-total-price" class="text-3xl font-black text-brand-600">--</span>
+              <span class="text-sm font-bold text-stone-500">الإجمالي التقديري:</span>
+              <span id="gw-total-price" class="text-3xl font-bold text-brand-500 font-display">--</span>
             </div>
           </div>
-
-          <button onclick="requestGiveawayWhatsApp()" class="btn-whatsapp py-3 px-8 text-sm flex items-center gap-2">
+          <button onclick="requestGiveawayWhatsApp()" class="btn-whatsapp h-[50px] px-8 text-base flex items-center gap-2">
             <i class="fa-brands fa-whatsapp text-lg"></i>
-            <span>طلب عرض السعر عبر واتساب</span>
+            <span>اطلب عرض السعر</span>
           </button>
         </div>
-
       </div>
+    </section>
 
-    </div>
-  </section>
-
-  <!-- ================= REVIEWS SECTION ================= -->
-  <section id="reviews-section" class="py-20 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-    <div class="text-center max-w-2xl mx-auto mb-14">
-      <span class="text-xs font-bold text-brand-600 uppercase tracking-widest block mb-2">ثقة ومحبة</span>
-      <h2 class="text-3xl font-black mb-3">ماذا يقول عملاء Nourii عنا؟</h2>
-      <p class="text-stone-600 dark:text-stone-400 text-sm">تجارب حقيقية من عملائنا في القاهرة والإسكندرية والمحافظات</p>
-    </div>
-
-    <div id="reviews-container" class="grid grid-cols-1 md:grid-cols-3 gap-6">
-      <!-- Injected by JS -->
-    </div>
-  </section>
-
-  <!-- ================= FAQS SECTION ================= -->
-  <section id="faqs-section" class="py-16 bg-stone-100/50 dark:bg-stone-900/30 border-y border-stone-200/80 dark:border-stone-800">
-    <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
-      <div class="text-center max-w-xl mx-auto mb-12">
-        <span class="text-xs font-bold text-brand-600 uppercase tracking-widest block mb-1">إجابات وتوضيحات</span>
-        <h2 class="text-3xl font-black">الأسئلة الأكثر شيوعاً</h2>
+    <!-- ================= REVIEWS ================= -->
+    <section id="reviews-section" class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-20">
+      <div class="text-center mb-8">
+        <h2 class="text-3xl font-bold">آراء عملائنا</h2>
       </div>
+      <div id="reviews-container" class="grid grid-cols-1 md:grid-cols-3 gap-6"></div>
+    </section>
 
-      <div id="faqs-container" class="space-y-4">
-        <!-- Injected by JS -->
+    <!-- ================= FAQS ================= -->
+    <section id="faqs-section" class="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 pt-20">
+      <div class="text-center mb-8">
+        <h2 class="text-3xl font-bold">الأسئلة الشائعة</h2>
       </div>
-    </div>
-  </section>
+      <div id="faqs-container" class="space-y-3"></div>
+    </section>
+  </main>
 
-  <!-- ================= FOOTER ================= -->
-  <footer class="bg-white dark:bg-stone-900 border-t border-stone-200 dark:border-stone-800 pt-16 pb-12">
-    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-      
-      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-10 mb-14">
-        
-        <!-- Brand Info -->
-        <div class="lg:col-span-2">
-          <div class="flex items-center gap-3 mb-4">
-            <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-brand-600 to-amber-500 flex items-center justify-center text-white font-black text-xl">
-              N
-            </div>
-            <span class="text-2xl font-black font-serif text-brand-600">Nourii</span>
-          </div>
-          <p class="text-stone-500 dark:text-stone-400 text-xs leading-relaxed max-w-sm mb-6">
-            متجر Nourii (نوري) - نصنع بحب أدوات الفنون اليدوية، مجسمات الكونكريت للأطفال، توزيعات المناسبات الملكية، والمفكرات المخصصة بالأسماء في مصر.
-          </p>
-          <div class="flex items-center gap-3">
-            <a href="https://instagram.com" target="_blank" class="w-9 h-9 rounded-full bg-stone-100 dark:bg-stone-800 hover:bg-pink-100 hover:text-pink-600 flex items-center justify-center text-sm transition-colors">
-              <i class="fa-brands fa-instagram"></i>
-            </a>
-            <a href="https://facebook.com" target="_blank" class="w-9 h-9 rounded-full bg-stone-100 dark:bg-stone-800 hover:bg-blue-100 hover:text-blue-600 flex items-center justify-center text-sm transition-colors">
-              <i class="fa-brands fa-facebook-f"></i>
-            </a>
-            <a href="https://tiktok.com" target="_blank" class="w-9 h-9 rounded-full bg-stone-100 dark:bg-stone-800 hover:bg-stone-200 hover:text-black flex items-center justify-center text-sm transition-colors">
-              <i class="fa-brands fa-tiktok"></i>
-            </a>
-            <a href="https://wa.me/201000000000" target="_blank" class="w-9 h-9 rounded-full bg-emerald-50 dark:bg-stone-800 text-emerald-600 hover:bg-emerald-100 flex items-center justify-center text-sm transition-colors">
-              <i class="fa-brands fa-whatsapp"></i>
-            </a>
-          </div>
-        </div>
-
-        <!-- Quick Links -->
-        <div>
-          <h4 class="font-bold text-sm mb-4">أقسام رئيسية</h4>
-          <ul class="space-y-2 text-xs text-stone-600 dark:text-stone-400 font-medium">
-            <li><a href="javascript:selectCategory('concrete')" class="hover:text-brand-600">كونكريت للتلوين</a></li>
-            <li><a href="javascript:selectCategory('coloring_books')" class="hover:text-brand-600">كتب تلوين</a></li>
-            <li><a href="javascript:selectCategory('event_favors')" class="hover:text-brand-600">توزيعات مناسبات</a></li>
-            <li><a href="javascript:selectCategory('notebooks')" class="hover:text-brand-600">نوت بوك ومفكرات</a></li>
-            <li><a href="javascript:selectCategory('islamic_prints')" class="hover:text-brand-600">مطبوعات دينية</a></li>
-          </ul>
-        </div>
-
-        <div>
-          <h4 class="font-bold text-sm mb-4">بقية الأقسام</h4>
-          <ul class="space-y-2 text-xs text-stone-600 dark:text-stone-400 font-medium">
-            <li><a href="javascript:selectCategory('educational_kids')" class="hover:text-brand-600">ادوات تعليمية للاطفال</a></li>
-            <li><a href="javascript:selectCategory('magnets_brooches')" class="hover:text-brand-600">صور مغناطيس و بروش</a></li>
-            <li><a href="javascript:selectCategory('luxury_prints')" class="hover:text-brand-600">مطبوعات وأختام شمع</a></li>
-            <li><a href="javascript:selectCategory('stickers')" class="hover:text-brand-600">استيكرز وواشي تيب</a></li>
-            <li><a href="javascript:selectCategory('others')" class="hover:text-brand-600">ريزن وهدايا أخرى</a></li>
-          </ul>
-        </div>
-
-        <!-- Contact & Ordering Info -->
-        <div>
-          <h4 class="font-bold text-sm mb-4">خدمة العملاء</h4>
-          <ul class="space-y-3 text-xs text-stone-600 dark:text-stone-400">
-            <li class="flex items-center gap-2">
-              <i class="fa-solid fa-clock text-brand-600"></i>
-              <span>الرد متاح يومياً من 10 ص حتى 11 م</span>
-            </li>
-            <li class="flex items-center gap-2">
-              <i class="fa-solid fa-location-dot text-brand-600"></i>
-              <span>مصر - شحن لجميع المحافظات</span>
-            </li>
-            <li class="flex items-center gap-2">
-              <i class="fa-solid fa-shield-halved text-emerald-600"></i>
-              <span>ضمان جودة وتغليف آمن للمنتجات</span>
-            </li>
-          </ul>
-        </div>
-
-      </div>
-
-      <div class="pt-8 border-t border-stone-200 dark:border-stone-800 text-center text-xs text-stone-400 flex flex-col sm:flex-row items-center justify-between gap-4">
-        <span>© 2026 Nourii - جميع الحقوق محفوظة لعلامة نوري</span>
-        <div class="flex items-center gap-4">
-          <a href="admin.html" class="hover:text-brand-600 transition-colors flex items-center gap-1.5 font-bold text-stone-500 hover:text-brand-600">
-            <i class="fa-solid fa-lock text-[11px]"></i>
-            <span>لوحة تحكم الإدارة (Admin)</span>
-          </a>
-          <span>•</span>
-          <span>صُمم وطُوّر بكل حب لمتجر Nourii الذكي ✨</span>
-        </div>
-      </div>
-
-    </div>
-  </footer>
-
-  <!-- ================= FLOATING CART BUTTON ================= -->
-  <button onclick="toggleCartDrawer()" class="floating-cart-btn">
-    <i class="fa-solid fa-cart-shopping text-lg"></i>
-    <span class="cart-badge-count bg-white text-brand-600 rounded-full w-6 h-6 flex items-center justify-center text-xs font-black">0</span>
-    <span id="floating-cart-total" class="text-xs font-bold hidden sm:inline">0 ج.م</span>
-  </button>
-
-  <!-- ================= FLOATING WHATSAPP BUTTON ================= -->
-  <a href="https://wa.me/201000000000" target="_blank" class="floating-whatsapp-btn" title="تواصل مباشرة عبر واتساب">
-    <i class="fa-brands fa-whatsapp"></i>
-  </a>
-
-  <!-- ================= PRODUCT QUICK VIEW MODAL ================= -->
-  <div id="product-modal" class="fixed inset-0 z-50 flex items-center justify-center modal-backdrop p-4 hidden">
-    <div class="bg-white dark:bg-stone-900 rounded-3xl max-w-2xl w-full overflow-hidden shadow-2xl relative max-h-[92vh] overflow-y-auto">
-      <button onclick="closeProductModal()" class="absolute top-4 inset-inline-end-4 w-9 h-9 rounded-full bg-stone-100 dark:bg-stone-800 hover:bg-stone-200 dark:hover:bg-stone-700 flex items-center justify-center text-stone-500 z-10">
-        <i class="fa-solid fa-xmark"></i>
-      </button>
-      <div id="product-modal-content">
-        <!-- Injected by JS -->
-      </div>
-    </div>
-  </div>
-
-  <!-- ================= CART SLIDE-OVER DRAWER ================= -->
-  <div id="cart-drawer" class="fixed inset-0 z-50 modal-backdrop hidden">
-    <div class="absolute inset-y-0 inset-inline-end-0 max-w-md w-full bg-white dark:bg-stone-900 shadow-2xl flex flex-col justify-between drawer-slide">
-      
-      <!-- Cart Header -->
-      <div class="p-6 border-b border-stone-200 dark:border-stone-800 flex items-center justify-between">
-        <div class="flex items-center gap-2.5">
-          <div class="w-9 h-9 rounded-xl bg-pink-100 dark:bg-stone-800 text-brand-600 flex items-center justify-center">
-            <i class="fa-solid fa-bag-shopping text-sm"></i>
-          </div>
-          <div>
-            <h3 class="font-bold text-base">سلة مشترياتك</h3>
-            <span class="text-xs text-stone-400"><span class="cart-badge-count">0</span> منتج</span>
-          </div>
-        </div>
-        <button onclick="toggleCartDrawer()" class="w-8 h-8 rounded-full hover:bg-stone-100 dark:hover:bg-stone-800 text-stone-400 hover:text-stone-700 flex items-center justify-center">
-          <i class="fa-solid fa-xmark"></i>
-        </button>
-      </div>
-
-      <!-- Cart Items List -->
-      <div id="cart-items-container" class="p-6 overflow-y-auto flex-1 space-y-4">
-        <!-- Injected by JS -->
-      </div>
-
-      <!-- Cart Footer & Checkout -->
-      <div class="p-6 border-t border-stone-200 dark:border-stone-800 bg-stone-50/50 dark:bg-stone-900/80">
-        
-        <!-- Promo Code Input -->
-        <div class="flex gap-2 mb-4">
-          <input type="text" id="promo-input" placeholder="كود الخصم (جرب NOURII10)" 
-            class="flex-1 px-3.5 py-2 text-xs rounded-xl border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-800 uppercase focus:outline-none focus:ring-2 focus:ring-brand-400">
-          <button onclick="applyPromoCode()" class="px-4 py-2 rounded-xl bg-stone-800 text-white dark:bg-stone-700 text-xs font-bold hover:bg-black transition-colors">
-            تطبيق
-          </button>
-        </div>
-
-        <!-- Totals Breakdown -->
-        <div class="space-y-2 text-xs mb-5">
-          <div class="flex justify-between text-stone-500">
-            <span>المجموع الفرعي:</span>
-            <span id="cart-subtotal" class="font-bold text-stone-800 dark:text-stone-200">0 ج.م</span>
-          </div>
-          <div class="flex justify-between text-emerald-600">
-            <span>الخصم المطبق:</span>
-            <span id="cart-discount" class="font-bold">0 ج.م</span>
-          </div>
-          <div class="flex justify-between text-base font-black pt-2 border-t border-stone-200 dark:border-stone-800">
-            <span>الإجمالي النهائي:</span>
-            <span id="cart-total" class="text-brand-600">0 ج.م</span>
-          </div>
-        </div>
-
-        <!-- Action Buttons -->
-        <div class="space-y-2">
-          <button onclick="openCheckoutModal()" class="btn-whatsapp w-full py-3.5 text-sm flex items-center justify-center gap-2">
-            <i class="fa-brands fa-whatsapp text-lg"></i>
-            <span>تأكيد وإرسال الطلب عبر واتساب</span>
-          </button>
-          <button onclick="clearCart()" class="w-full py-2 text-center text-[11px] text-stone-400 hover:text-red-500 transition-colors">
-            تفريغ السلة بالكامل
-          </button>
-        </div>
-
-      </div>
-
-    </div>
-  </div>
-
-  <!-- ================= CHECKOUT CUSTOMER INFO MODAL ================= -->
-  <div id="checkout-modal" class="fixed inset-0 z-50 flex items-center justify-center modal-backdrop p-4 hidden">
-    <div class="bg-white dark:bg-stone-900 rounded-3xl max-w-md w-full p-6 sm:p-8 overflow-hidden shadow-2xl relative">
-      <button onclick="closeCheckoutModal()" class="absolute top-4 inset-inline-end-4 w-8 h-8 rounded-full bg-stone-100 dark:bg-stone-800 text-stone-400 hover:text-stone-700 flex items-center justify-center">
-        <i class="fa-solid fa-xmark"></i>
-      </button>
-
-      <div class="text-center mb-6">
-        <div class="w-12 h-12 mx-auto rounded-2xl bg-emerald-100 text-emerald-600 flex items-center justify-center text-xl mb-2">
-          <i class="fa-brands fa-whatsapp"></i>
-        </div>
-        <h3 class="text-xl font-black">بيانات توصيل الطلب</h3>
-        <p class="text-xs text-stone-500 mt-1">أدخل بياناتك لتجهيز رسالة الطلب المباشرة إلى Nourii</p>
-      </div>
-
-      <div class="space-y-4 mb-6">
-        <div>
-          <label class="block text-xs font-bold text-stone-700 dark:text-stone-300 mb-1">الاسم بالكامل *</label>
-          <input type="text" id="order-cust-name" placeholder="مثال: نورهان أحمد" required
-            class="w-full px-3.5 py-2.5 text-xs rounded-xl border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-800 focus:ring-2 focus:ring-brand-400 focus:outline-none">
-        </div>
-
-        <div>
-          <label class="block text-xs font-bold text-stone-700 dark:text-stone-300 mb-1">رقم الهاتف (واتساب) *</label>
-          <input type="tel" id="order-cust-phone" placeholder="مثال: 01012345678" required
-            class="w-full px-3.5 py-2.5 text-xs rounded-xl border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-800 focus:ring-2 focus:ring-brand-400 focus:outline-none">
-        </div>
-
-        <div>
-          <label class="block text-xs font-bold text-stone-700 dark:text-stone-300 mb-1">المحافظة / المدينة</label>
-          <input type="text" id="order-cust-city" placeholder="مثال: القاهرة - التجمع الخامس" 
-            class="w-full px-3.5 py-2.5 text-xs rounded-xl border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-800 focus:ring-2 focus:ring-brand-400 focus:outline-none">
-        </div>
-
-        <div>
-          <label class="block text-xs font-bold text-stone-700 dark:text-stone-300 mb-1">العنوان التفصيلي للتوصيل</label>
-          <input type="text" id="order-cust-address" placeholder="اسم الشارع، رقم العمارة أو الفيلا..." 
-            class="w-full px-3.5 py-2.5 text-xs rounded-xl border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-800 focus:ring-2 focus:ring-brand-400 focus:outline-none">
-        </div>
-
-        <div>
-          <label class="block text-xs font-bold text-stone-700 dark:text-stone-300 mb-1">ملاحظات إضافية على الطلب</label>
-          <textarea id="order-cust-notes" rows="2" placeholder="أي تفاصيل خاصة بالألوان أو موعد التسليم..." 
-            class="w-full px-3.5 py-2 text-xs rounded-xl border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-800 focus:ring-2 focus:ring-brand-400 focus:outline-none"></textarea>
-        </div>
-      </div>
-
-      <button onclick="executeWhatsAppOrder()" class="btn-whatsapp w-full py-3 text-sm flex items-center justify-center gap-2">
-        <i class="fa-brands fa-whatsapp text-lg"></i>
-        <span>إرسال الطلب إلى واتساب Nourii</span>
-      </button>
-    </div>
-  </div>
-
-  <!-- ================= STORE SETTINGS MODAL ================= -->
-  <div id="settings-modal" class="fixed inset-0 z-50 flex items-center justify-center modal-backdrop p-4 hidden">
-    <div class="bg-white dark:bg-stone-900 rounded-3xl max-w-sm w-full p-6 shadow-2xl relative">
-      <button onclick="closeSettingsModal()" class="absolute top-4 inset-inline-end-4 w-8 h-8 rounded-full bg-stone-100 dark:bg-stone-800 text-stone-400 hover:text-stone-700 flex items-center justify-center">
-        <i class="fa-solid fa-xmark"></i>
-      </button>
-
-      <h3 class="font-black text-lg mb-1 flex items-center gap-2">
-        <i class="fa-solid fa-sliders text-brand-600"></i>
-        <span>إعدادات متجر Nourii</span>
-      </h3>
-      <p class="text-xs text-stone-500 mb-4">يمكنك تعديل رقم واتساب استقبال الطلبات هنا</p>
-
-      <div class="space-y-4 mb-6">
-        <div>
-          <label class="block text-xs font-bold text-stone-700 dark:text-stone-300 mb-1">رقم الواتساب لاستقبال الطلبات</label>
-          <input type="text" id="set-whatsapp-phone" placeholder="مثال: 201000000000 (مع كود الدولة)" 
-            class="w-full px-3.5 py-2.5 text-xs rounded-xl border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-800 focus:ring-2 focus:ring-brand-400 focus:outline-none">
-          <p class="text-[10px] text-stone-400 mt-1">اكتب الرقم شاملاً كود الدولة بدون علامة + (مثال: 201012345678 لمصر)</p>
-        </div>
-      </div>
-
-      <div class="flex gap-2">
-        <button onclick="saveStoreSettings()" class="btn-primary flex-1 py-2.5 text-xs">
-          حفظ التغييرات
-        </button>
-        <button onclick="closeSettingsModal()" class="px-4 py-2.5 rounded-full border border-stone-200 text-xs">
-          إلغاء
-        </button>
-      </div>
-    </div>
-  </div>
+  <div id="site-footer"></div>
+  <div id="site-overlays"></div>
 
   <!-- Scripts -->
-  <script src="config.js?v=20261009b"></script>
-  <script src="products.js?v=20261009b"></script>
-  <script src="app.js?v=20261009b"></script>
+  <script src="config.js?v=20261101"></script>
+  <script src="products.js?v=20261101"></script>
+  <script src="layout.js?v=20261101"></script>
+  <script src="app.js?v=20261101"></script>
 </body>
 </html>

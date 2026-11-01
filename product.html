@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Nourii | منتج</title>
+  <meta name="description" content="منتجات Nourii (نوري) اليدوية: كونكريت للتلوين، توزيعات مناسبات، نوت بوك ومطبوعات مخصصة بالأسماء.">
+
+  <!-- Tailwind CSS CDN + shared theme -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="tailwind-config.js?v=20261101"></script>
+
+  <!-- Font Awesome 6 -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+
+  <!-- Custom CSS -->
+  <link rel="stylesheet" href="styles.css?v=20261101">
+</head>
+<body>
+
+  <div id="site-header"></div>
+
+  <main id="product-page" class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 pb-10">
+    <!-- Filled by renderProductPage() in app.js -->
+    <div class="py-32 text-center text-stone-400">
+      <i class="fa-solid fa-spinner fa-spin text-2xl"></i>
+    </div>
+  </main>
+
+  <!-- Related products -->
+  <section id="related-section" class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-6 hidden">
+    <h2 class="text-2xl sm:text-3xl font-bold mb-6">منتجات مشابهة</h2>
+    <div id="related-grid" class="grid grid-cols-2 md:grid-cols-4 gap-x-4 gap-y-8 sm:gap-x-6"></div>
+  </section>
+
+  <!-- Sticky buy bar (shows when the main buttons scroll out of view) -->
+  <div id="sticky-buy-bar" class="sticky-buy-bar">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 flex items-center justify-between gap-4">
+      <div class="flex items-center gap-3 min-w-0">
+        <img id="sticky-buy-img" src="" alt="" class="w-14 h-14 rounded-xl object-cover flex-shrink-0 bg-stone-100">
+        <div class="min-w-0">
+          <div id="sticky-buy-name" class="font-display font-bold text-base truncate"></div>
+          <div id="sticky-buy-price" class="price-now text-sm"></div>
+        </div>
+      </div>
+      <button onclick="buyNowFromProductPage()" class="btn-primary h-[46px] px-6 sm:px-10 text-sm sm:text-base flex-shrink-0">
+        اطلب الآن
+      </button>
+    </div>
+  </div>
+
+  <div id="site-footer"></div>
+  <div id="site-overlays"></div>
+
+  <!-- Scripts -->
+  <script src="config.js?v=20261101"></script>
+  <script src="products.js?v=20261101"></script>
+  <script src="layout.js?v=20261101"></script>
+  <script src="app.js?v=20261101"></script>
+</body>
+</html>

@@ -26,6 +26,9 @@ copies the site uses live in `assets/images/`.
 | File | Role |
 |------|------|
 | `index.html`, `app.js`, `styles.css` | Storefront: catalog, filters, cart, wishlist, coupons (`NOURII10`), giveaways estimator, WhatsApp checkout |
+| `product.html` | Product page (`product.html?id=<product id>`): gallery, price, name field, qty, add to cart / buy now, tabs, related products, sticky buy bar |
+| `layout.js` | Shared announcement bar, header + category menu, footer, cart drawer, checkout and settings modals, injected into `#site-header`, `#site-footer`, `#site-overlays` on every storefront page |
+| `tailwind-config.js` | Shared Tailwind theme: bright pink `brand` scale (`#e85db3`), El Messiri display font |
 | `products.js` | Fallback product catalog (27 products), used when Google Drive can't be reached |
 | `admin.html`, `admin.js`, `admin.css` | Admin portal: login, products CRUD, users (Admin/Editor), password change, first-login password setup |
 | `config.js` | `googleScriptUrl` (live Apps Script web app) and GitHub repo settings |
@@ -43,8 +46,11 @@ copies the site uses live in `assets/images/`.
   admin page loads or the users tab opens.
 - If the `admin` row is removed from the `Users` sheet, or Drive is unreachable, nobody can
   log in. Keep that row.
-- Script tags in `index.html` and `admin.html` carry a version query string for cache
-  busting. Bump it when you change `app.js` or `admin.js`.
+- Script and style tags in `index.html`, `product.html` and `admin.html` carry a version
+  query string for cache busting. Bump it when you change those files.
+- Home page links accept `?cat=<category id>`, `?q=<search>` and `?fav=1` to open the catalog
+  filtered. A product can have extra photos in an optional `images` field (array, or comma /
+  new-line separated URLs); they show as thumbnails on its product page.
 - When the Apps Script backend changes, it must be re-pasted in Google Apps Script and
   redeployed; a new deployment gives a new URL that must go into `config.js`.
 
@@ -66,3 +72,10 @@ copies the site uses live in `assets/images/`.
   sales yet).
 - 2026-11-01 (Claude Code): Added this shared AGENTS.md and CLAUDE.md, and registered
   Claude Code as an MCP server in Antigravity.
+- 2026-11-01 (Claude Code): Added the `antigravity` MCP server to Claude Code
+  (`~/.claude/mcp/antigravity-bridge/server.js`). Claude Code can now start and continue
+  Antigravity conversations (Flash/Pro tiers) and ask Gemini 4 Argon through the Gemini API.
+- 2026-11-01 (Claude Code): Redesigned the storefront in a clean white + bright pink style
+  (El Messiri font, pill buttons, centered logo with category menu). Replaced the product
+  pop-up with a shareable product page (`product.html?id=...`) and moved the shared header,
+  footer and cart into `layout.js`.

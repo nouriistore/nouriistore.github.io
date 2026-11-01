@@ -2,57 +2,45 @@
    NOURII STORE - MASTER STYLESHEET (التصميم العام والهوية)
    ======================================================== */
 
-@import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800;900&family=Outfit:wght@300;400;500;600;700;800&family=Tajawal:wght@400;500;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=El+Messiri:wght@400;500;600;700&family=Cairo:wght@400;500;600;700;800&family=Outfit:wght@400;500;600;700&display=swap');
 
 :root {
-  --primary: #c96576;
-  --primary-hover: #b44f60;
-  --primary-light: #fbecee;
-  --secondary: #d89e72;
-  --secondary-light: #fcf4ec;
-  --accent-gold: #cfa85b;
-  --accent-sage: #6e9975;
-  --accent-mint: #eef7f2;
-  --bg-main: #fdfaf6;
+  --primary: #e85db3;
+  --primary-hover: #d4409b;
+  --primary-light: #fce7f4;
+  --bg-main: #ffffff;
   --bg-card: #ffffff;
-  --text-main: #2b2325;
-  --text-muted: #6e6466;
-  --border-color: #f0e6dd;
+  --bg-soft: #f7f7f8;
+  --text-main: #131316;
+  --text-muted: #6b6b73;
+  --border-color: #ececef;
   --radius-sm: 8px;
   --radius-md: 14px;
-  --radius-lg: 22px;
+  --radius-lg: 20px;
   --radius-full: 9999px;
-  --shadow-soft: 0 10px 30px -10px rgba(180, 79, 96, 0.08);
-  --shadow-hover: 0 20px 40px -15px rgba(180, 79, 96, 0.16);
-  --glass-bg: rgba(255, 255, 255, 0.88);
-  --glass-border: rgba(255, 255, 255, 0.4);
+  --shadow-soft: 0 6px 24px -12px rgba(19, 19, 22, 0.12);
+  --shadow-hover: 0 16px 36px -16px rgba(232, 93, 179, 0.35);
 }
 
 /* Dark Mode Variables */
 [data-theme="dark"] {
-  --primary: #e07a8c;
-  --primary-hover: #ea8d9d;
-  --primary-light: #3a2227;
-  --secondary: #e5b18a;
-  --secondary-light: #3a2b22;
-  --accent-gold: #e2be74;
-  --accent-sage: #8ab892;
-  --accent-mint: #213327;
-  --bg-main: #181516;
-  --bg-card: #221d1f;
-  --text-main: #f7f2f3;
-  --text-muted: #aca1a3;
-  --border-color: #383032;
-  --shadow-soft: 0 10px 30px -10px rgba(0, 0, 0, 0.4);
-  --shadow-hover: 0 20px 40px -15px rgba(0, 0, 0, 0.6);
-  --glass-bg: rgba(34, 29, 31, 0.92);
-  --glass-border: rgba(255, 255, 255, 0.08);
+  --primary: #f07cc4;
+  --primary-hover: #f7a8d6;
+  --primary-light: #3a1f31;
+  --bg-main: #141215;
+  --bg-card: #1d1a1e;
+  --bg-soft: #232025;
+  --text-main: #f6f3f5;
+  --text-muted: #a9a3a8;
+  --border-color: #332e34;
+  --shadow-soft: 0 6px 24px -12px rgba(0, 0, 0, 0.5);
+  --shadow-hover: 0 16px 36px -16px rgba(0, 0, 0, 0.7);
 }
 
 /* Base Settings */
 html {
   scroll-behavior: smooth;
-  font-family: 'Cairo', 'Outfit', sans-serif;
+  font-family: 'Cairo', 'El Messiri', sans-serif;
   background-color: var(--bg-main);
   color: var(--text-main);
   transition: background-color 0.3s ease, color 0.3s ease;
@@ -61,151 +49,353 @@ html {
 body {
   overflow-x: hidden;
   min-height: 100vh;
+  background-color: var(--bg-main);
+  color: var(--text-main);
 }
 
-/* Typography when in English */
 [dir="ltr"] {
   font-family: 'Outfit', 'Cairo', sans-serif;
 }
 
-/* Glassmorphism Header */
-.glass-header {
-  background: var(--glass-bg);
-  backdrop-filter: blur(14px);
-  -webkit-backdrop-filter: blur(14px);
+h1, h2, h3, .font-display {
+  font-family: 'El Messiri', 'Cairo', sans-serif;
+}
+
+[dir="ltr"] h1, [dir="ltr"] h2, [dir="ltr"] h3 {
+  font-family: 'Outfit', 'El Messiri', sans-serif;
+}
+
+/* ---------- Header ---------- */
+/* The header is rendered inside a placeholder div; let it stick to the page, not to that div */
+#site-header {
+  display: contents;
+}
+
+.announcement-bar {
+  background: var(--primary-light);
+  color: var(--primary-hover);
+  font-size: 13px;
+  font-weight: 700;
+  padding: 9px 16px;
+  text-align: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+[data-theme="dark"] .announcement-bar {
+  color: var(--primary);
+}
+
+.site-header {
+  background: var(--bg-main);
   border-bottom: 1px solid var(--border-color);
 }
 
-/* Modern Card Hover Effects */
+.header-icon-btn {
+  min-width: 40px;
+  height: 40px;
+  border-radius: var(--radius-full);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-main);
+  font-size: 17px;
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+.header-icon-btn:hover {
+  background: var(--bg-soft);
+  color: var(--primary);
+}
+
+.header-badge {
+  position: absolute;
+  top: 2px;
+  inset-inline-end: 0;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 4px;
+  border-radius: var(--radius-full);
+  background: var(--primary);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.header-badge.hidden {
+  display: none;
+}
+
+.header-category-nav {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 4px 22px;
+  overflow-x: auto;
+  white-space: nowrap;
+  padding: 6px 0 12px;
+}
+
+@media (min-width: 1024px) {
+  .header-category-nav {
+    justify-content: center;
+    flex-wrap: wrap;
+    white-space: normal;
+  }
+}
+
+.header-nav-link {
+  font-family: 'El Messiri', 'Cairo', sans-serif;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-main);
+  padding: 4px 0;
+  border-bottom: 2px solid transparent;
+  transition: color 0.2s ease, border-color 0.2s ease;
+}
+
+.header-nav-link:hover,
+.header-nav-link.is-active {
+  color: var(--primary);
+  border-bottom-color: var(--primary);
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+.no-scrollbar {
+  scrollbar-width: none;
+}
+
+/* ---------- Cards ---------- */
 .nourii-card {
   background: var(--bg-card);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-soft);
-  transition: all 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: transform 0.3s ease, box-shadow 0.3s ease, border-color 0.3s ease;
 }
 
 .nourii-card:hover {
-  transform: translateY(-6px);
+  transform: translateY(-4px);
   box-shadow: var(--shadow-hover);
-  border-color: rgba(201, 101, 118, 0.3);
+  border-color: var(--primary-light);
 }
 
-/* Category Badge Chip */
+/* Product card (grid + related products) */
+.product-card-img {
+  position: relative;
+  aspect-ratio: 1 / 1;
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  background: var(--bg-soft);
+}
+
+.product-card-img img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.product-card:hover .product-card-img img {
+  transform: scale(1.05);
+}
+
+.sale-tag {
+  position: absolute;
+  top: 12px;
+  inset-inline-start: 12px;
+  background: var(--primary);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 800;
+  padding: 3px 10px;
+  border-radius: var(--radius-full);
+}
+
+.price-now {
+  color: var(--primary);
+  font-weight: 800;
+}
+
+.price-old {
+  color: var(--text-muted);
+  text-decoration: line-through;
+}
+
+/* Category Chip */
 .category-chip {
-  transition: all 0.25s ease;
+  transition: all 0.2s ease;
   white-space: nowrap;
 }
 
 .category-chip.active {
-  background: linear-gradient(135deg, var(--primary) 0%, #b44f60 100%);
-  color: #ffffff !important;
-  box-shadow: 0 6px 16px rgba(201, 101, 118, 0.35);
-  border-color: transparent !important;
-}
-
-/* Custom Scrollbar */
-::-webkit-scrollbar {
-  width: 9px;
-  height: 9px;
-}
-
-::-webkit-scrollbar-track {
-  background: var(--bg-main);
-}
-
-::-webkit-scrollbar-thumb {
-  background: #e2d1c6;
-  border-radius: var(--radius-full);
-}
-
-::-webkit-scrollbar-thumb:hover {
   background: var(--primary);
+  color: #ffffff !important;
+  border-color: var(--primary) !important;
 }
 
-/* Buttons */
+/* ---------- Buttons ---------- */
 .btn-primary {
-  background: linear-gradient(135deg, var(--primary) 0%, #b44f60 100%);
+  background: var(--primary);
   color: #ffffff;
+  border: 1px solid var(--primary);
   border-radius: var(--radius-full);
-  font-weight: 600;
-  transition: all 0.25s ease;
-  box-shadow: 0 4px 14px rgba(201, 101, 118, 0.25);
+  font-family: 'El Messiri', 'Cairo', sans-serif;
+  font-weight: 700;
+  transition: background-color 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
 }
 
 .btn-primary:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 8px 22px rgba(201, 101, 118, 0.4);
+  background: var(--primary-hover);
+  border-color: var(--primary-hover);
+  box-shadow: 0 8px 20px -8px rgba(232, 93, 179, 0.6);
+}
+
+.btn-outline {
+  background: var(--bg-card);
+  color: var(--primary);
+  border: 1px solid var(--primary);
+  border-radius: var(--radius-full);
+  font-family: 'El Messiri', 'Cairo', sans-serif;
+  font-weight: 700;
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+.btn-outline:hover {
+  background: var(--primary);
+  color: #ffffff;
 }
 
 .btn-whatsapp {
-  background: linear-gradient(135deg, #25D366 0%, #128C7E 100%);
+  background: #25d366;
   color: #ffffff;
   border-radius: var(--radius-full);
+  font-family: 'El Messiri', 'Cairo', sans-serif;
   font-weight: 700;
-  transition: all 0.25s ease;
-  box-shadow: 0 6px 18px rgba(37, 211, 102, 0.3);
+  transition: background-color 0.2s ease;
 }
 
 .btn-whatsapp:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 10px 25px rgba(37, 211, 102, 0.45);
+  background: #1ebe5b;
 }
 
-/* Floating WhatsApp Quick Action Button */
+/* Quantity stepper (pill) */
+.qty-stepper {
+  display: inline-flex;
+  align-items: center;
+  height: 50px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-full);
+  background: var(--bg-card);
+}
+
+.qty-stepper button {
+  width: 44px;
+  height: 100%;
+  font-size: 18px;
+  color: var(--text-main);
+  border-radius: var(--radius-full);
+}
+
+.qty-stepper button:hover {
+  color: var(--primary);
+}
+
+.qty-stepper input {
+  width: 36px;
+  text-align: center;
+  font-weight: 700;
+  background: transparent;
+  outline: none;
+}
+
+/* ---------- Floating buttons ---------- */
 .floating-whatsapp-btn {
   position: fixed;
   bottom: 24px;
-  inset-inline-start: 24px;
-  z-index: 50;
-  width: 60px;
-  height: 60px;
+  inset-inline-end: 24px;
+  z-index: 45;
+  width: 56px;
+  height: 56px;
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(135deg, #25D366 0%, #128C7E 100%);
+  background: #25d366;
   color: white;
-  font-size: 30px;
-  box-shadow: 0 8px 25px rgba(37, 211, 102, 0.4);
-  transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  font-size: 28px;
+  box-shadow: 0 8px 22px rgba(37, 211, 102, 0.4);
+  transition: transform 0.25s ease, bottom 0.25s ease;
 }
 
 .floating-whatsapp-btn:hover {
-  transform: scale(1.1) rotate(5deg);
-  box-shadow: 0 12px 30px rgba(37, 211, 102, 0.55);
+  transform: scale(1.08);
 }
 
-/* Floating Cart Button */
-.floating-cart-btn {
+body.has-sticky-buy .floating-whatsapp-btn {
+  bottom: 104px;
+}
+
+/* Product page sticky buy bar */
+.sticky-buy-bar {
   position: fixed;
-  bottom: 24px;
-  inset-inline-end: 24px;
-  z-index: 50;
-  min-width: 60px;
-  height: 60px;
-  padding: 0 18px;
-  border-radius: 30px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 10px;
-  background: linear-gradient(135deg, var(--primary) 0%, #9e3d4e 100%);
-  color: white;
-  font-weight: 700;
-  box-shadow: 0 8px 25px rgba(201, 101, 118, 0.45);
-  transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  inset-inline: 0;
+  bottom: 0;
+  z-index: 44;
+  background: var(--bg-main);
+  border-top: 1px solid var(--border-color);
+  box-shadow: 0 -8px 24px -12px rgba(19, 19, 22, 0.15);
+  transform: translateY(110%);
+  transition: transform 0.3s ease;
 }
 
-.floating-cart-btn:hover {
-  transform: scale(1.06);
-  box-shadow: 0 12px 32px rgba(201, 101, 118, 0.6);
+.sticky-buy-bar.is-visible {
+  transform: translateY(0);
+}
+
+/* Product gallery thumbnails */
+.gallery-thumb {
+  border: 2px solid transparent;
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  aspect-ratio: 1 / 1;
+  background: var(--bg-soft);
+  transition: border-color 0.2s ease;
+}
+
+.gallery-thumb.is-active,
+.gallery-thumb:hover {
+  border-color: var(--primary);
+}
+
+/* Product page tabs */
+.pp-tab {
+  font-family: 'El Messiri', 'Cairo', sans-serif;
+  font-weight: 700;
+  padding: 10px 20px;
+  border-radius: var(--radius-md);
+  color: var(--text-muted);
+}
+
+.pp-tab.is-active {
+  background: var(--bg-card);
+  color: var(--text-main);
+  box-shadow: var(--shadow-soft);
 }
 
 /* Pulse animation on cart */
 @keyframes cartPulse {
   0% { transform: scale(1); }
-  50% { transform: scale(1.15); }
+  50% { transform: scale(1.18); }
   100% { transform: scale(1); }
 }
 
@@ -215,10 +405,9 @@ body {
 
 /* Modals & Drawers */
 .modal-backdrop {
-  background: rgba(18, 14, 15, 0.65);
-  backdrop-filter: blur(6px);
-  -webkit-backdrop-filter: blur(6px);
-  transition: opacity 0.3s ease;
+  background: rgba(19, 19, 22, 0.55);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
 }
 
 .drawer-slide {
@@ -253,68 +442,12 @@ body {
 }
 
 @keyframes slideToast {
-  from {
-    opacity: 0;
-    transform: translateY(-20px) scale(0.95);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0) scale(1);
-  }
+  from { opacity: 0; transform: translateY(-20px) scale(0.95); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
 }
 
-/* Interactive Star Rating */
-.star-filled {
-  color: #ffb703;
-}
-
-/* Hero Badge Glow */
-.hero-glow {
-  position: absolute;
-  width: 500px;
-  height: 500px;
-  background: radial-gradient(circle, rgba(201, 101, 118, 0.18) 0%, rgba(216, 158, 114, 0.12) 40%, rgba(0, 0, 0, 0) 70%);
-  filter: blur(50px);
-  z-index: 0;
-  pointer-events: none;
-}
-
-/* Image Aspect and Zoom */
-.product-img-wrapper {
-  overflow: hidden;
-  position: relative;
-  border-radius: 16px;
-  background-color: #f7f1eb;
-}
-
-.product-img-wrapper img {
-  transition: transform 0.6s cubic-bezier(0.16, 1, 0.3, 1);
-}
-
-.nourii-card:hover .product-img-wrapper img {
-  transform: scale(1.06);
-}
-
-/* Custom Checkbox and Radio Styles */
-.custom-radio:checked + label {
-  border-color: var(--primary);
-  background-color: var(--primary-light);
-  color: var(--primary);
-  font-weight: 700;
-}
-
-/* Print Invoice Styling */
-@media print {
-  body * {
-    visibility: hidden;
-  }
-  #printable-receipt, #printable-receipt * {
-    visibility: visible;
-  }
-  #printable-receipt {
-    position: absolute;
-    left: 0;
-    top: 0;
-    width: 100%;
-  }
-}
+/* Scrollbar */
+::-webkit-scrollbar { width: 9px; height: 9px; }
+::-webkit-scrollbar-track { background: var(--bg-main); }
+::-webkit-scrollbar-thumb { background: #e3dfe3; border-radius: var(--radius-full); }
+::-webkit-scrollbar-thumb:hover { background: var(--primary); }
