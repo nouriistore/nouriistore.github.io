@@ -1,0 +1,68 @@
+# Nourii store — shared notes for AI agents
+
+This file is read by both **Antigravity** and **Claude Code**. Whichever agent works on
+this project should read it first and add a short line to the "Work log" at the bottom
+when it finishes something, so the other agent knows what changed.
+
+## What this project is
+
+A static online store for the Nourii brand (handmade prints, coloring kits, event favors,
+notebooks, kids' learning tools). Arabic-first, RTL, with English toggle and dark mode.
+Orders are sent through WhatsApp; there is no payment gateway.
+
+- Live site: https://yaminakkady.github.io/nourii/
+- Admin page: https://yaminakkady.github.io/nourii/admin.html
+- Repo: https://github.com/yaminakkady/nourii (branch `main`, served by GitHub Pages)
+
+### The 10 categories
+كونكريت للتلوين · كتب تلوين · صور مغناطيس و بروش · توزيعات مناسبات · نوت بوك ·
+مطبوعات دينية · ادوات تعليمية للاطفال · مطبوعات · استيكرز · اخرى
+
+Sample photos for each category are the `.jpeg`/`.jpg` files in the project root; the
+copies the site uses live in `assets/images/`.
+
+## Files
+
+| File | Role |
+|------|------|
+| `index.html`, `app.js`, `styles.css` | Storefront: catalog, filters, cart, wishlist, coupons (`NOURII10`), giveaways estimator, WhatsApp checkout |
+| `products.js` | Fallback product catalog (27 products), used when Google Drive can't be reached |
+| `admin.html`, `admin.js`, `admin.css` | Admin portal: login, products CRUD, users (Admin/Editor), password change, first-login password setup |
+| `config.js` | `googleScriptUrl` (live Apps Script web app) and GitHub repo settings |
+| `google_apps_script_backend.js` | Code pasted into Google Apps Script; creates/uses `Products` and `Users` sheets and a `Nourii Media` Drive folder |
+| `sync_google_to_github.py`, `sync_store.bat` | Pull products from the Sheet, rewrite `products.js`, commit and push |
+| `nourii_products_database.csv` | Product data export for importing into the Sheet |
+| `docs/` | Setup guides (Google Drive setup guide is git-ignored) |
+
+## How data flows
+
+- **Google Sheets (via the Apps Script URL in `config.js`) is the source of truth** for
+  products and users. `products.js` is only a fallback copy.
+- **Login goes through Google Drive only.** The browser's cached user list is used only if
+  no Apps Script URL is set. Deleted or disabled users are logged out the next time the
+  admin page loads or the users tab opens.
+- If the `admin` row is removed from the `Users` sheet, or Drive is unreachable, nobody can
+  log in. Keep that row.
+- Script tags in `index.html` and `admin.html` carry a version query string for cache
+  busting. Bump it when you change `app.js` or `admin.js`.
+- When the Apps Script backend changes, it must be re-pasted in Google Apps Script and
+  redeployed; a new deployment gives a new URL that must go into `config.js`.
+
+## Rules for agents
+
+- Never put passwords, GitHub tokens or other secrets in this file or in committed code.
+- Test changes against the live Apps Script URL before pushing; the site updates as soon as
+  `main` is pushed.
+- Keep the UI Arabic-first and RTL.
+
+## Work log
+
+- 2026-10-08 (Antigravity): Built the storefront with 10 categories, WhatsApp checkout,
+  giveaways estimator, bilingual UI and dark mode.
+- 2026-10-09 (Antigravity): Published to GitHub Pages. Added admin portal, Google Drive
+  backend, GitHub sync, password change and first-login setup. Fixed multi-device login and
+  made Google Drive the strict source of truth so deleted users can't log in (commit
+  `ff623ff`). Gave a resale price estimate (about 15,000–30,000 EGP for a new store with no
+  sales yet).
+- 2026-11-01 (Claude Code): Added this shared AGENTS.md and CLAUDE.md, and registered
+  Claude Code as an MCP server in Antigravity.
