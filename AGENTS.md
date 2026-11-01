@@ -130,3 +130,5 @@ copies the site uses live in `assets/images/`.
   resolution on `send-message` and `new-conversation`). Added `claude-bridge`
   (`~/.claude/mcp/antigravity-bridge/claude-server.js`) and registered both `claude-bridge`
   and `claude-code` in Antigravity 2.0's global `~/.gemini/config/mcp_config.json`.
+- 2026-11-01 (Claude Code): Owner redeployed the Apps Script as a new deployment; `config.js`
+  now points at it. The admin page now prefers the `config.js` link over one saved in the browser.

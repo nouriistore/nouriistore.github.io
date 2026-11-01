@@ -29,12 +29,12 @@ document.addEventListener('DOMContentLoaded', () => {
 // LOAD STORED DATA
 function loadAdminStoredData() {
   try {
-    // 1. Settings from config.js or localStorage
+    // 1. Settings: config.js wins, so a new deployment link reaches every browser;
+    //    a link saved in this browser is only used when config.js has none
+    const savedScriptUrl = localStorage.getItem('nourii_google_script_url');
     if (typeof NOURII_CONFIG !== 'undefined' && NOURII_CONFIG.googleScriptUrl) {
       ADMIN_STATE.settings.googleScriptUrl = NOURII_CONFIG.googleScriptUrl;
-    }
-    const savedScriptUrl = localStorage.getItem('nourii_google_script_url');
-    if (savedScriptUrl) {
+    } else if (savedScriptUrl) {
       ADMIN_STATE.settings.googleScriptUrl = savedScriptUrl;
     }
 
