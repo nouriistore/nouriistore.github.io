@@ -42,9 +42,14 @@ document.addEventListener('DOMContentLoaded', () => {
   fetchLiveProductsFromGoogleDrive();
 });
 
-// Home page links like index.html?cat=notebooks, ?q=..., ?fav=1 open the catalog pre-filtered
+// Shop page links like shop.html?cat=notebooks, ?q=..., ?fav=1 open the catalog pre-filtered
 function applyUrlFilters() {
   const params = new URLSearchParams(window.location.search);
+  // Older links pointed at index.html?cat=... — send them to the shop page
+  if (document.body.dataset.page === 'home' && (params.get('cat') || params.get('q') || params.get('fav'))) {
+    window.location.replace(`shop.html${window.location.search}`);
+    return;
+  }
   const cat = params.get('cat');
   if (cat && (cat === 'all' || CATEGORIES.some(c => c.id === cat))) APP_STATE.currentCategory = cat;
   if (params.get('q')) {
@@ -59,6 +64,8 @@ function applyUrlFilters() {
 function renderStorefront() {
   if (typeof renderHeaderNav === 'function') renderHeaderNav();
   renderCategoryShowcase();
+  renderFeaturedProducts();
+  renderShopBanner();
   renderCategories();
   renderProducts();
   renderProductPage();
@@ -213,7 +220,7 @@ function renderCategoryShowcase() {
   const isAr = APP_STATE.lang === 'ar';
 
   container.innerHTML = CATEGORIES.map(cat => `
-    <a href="index.html?cat=${cat.id}#catalog-section" onclick="return navCategory(event, '${cat.id}')" class="group text-center">
+    <a href="${shopUrl(cat.id)}" class="group text-center">
       <div class="aspect-square rounded-2xl overflow-hidden bg-stone-100 dark:bg-stone-800 mb-2.5">
         <img src="${cat.image}" alt="${escapeHtml(isAr ? cat.nameAr : cat.nameEn)}" loading="lazy"
           class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500">
@@ -223,7 +230,60 @@ function renderCategoryShowcase() {
   `).join('');
 }
 
-// RENDER CATEGORY FILTER CHIPS
+// HOME PAGE: best sellers (badged / top-rated products first)
+function renderFeaturedProducts() {
+  const container = document.getElementById('featured-grid');
+  if (!container) return;
+  const featured = [...PRODUCTS]
+    .sort((a, b) => (b.badgeAr ? 1 : 0) - (a.badgeAr ? 1 : 0) || (b.rating || 0) - (a.rating || 0))
+    .slice(0, 8);
+  container.innerHTML = featured.map(productCardHTML).join('');
+}
+
+// SHOP PAGE BANNER: breadcrumb + title/description of the category (or all products)
+function renderShopBanner() {
+  const banner = document.getElementById('shop-banner');
+  if (!banner) return;
+
+  const isAr = APP_STATE.lang === 'ar';
+  const cat = CATEGORIES.find(c => c.id === APP_STATE.currentCategory);
+  let title, desc;
+  if (APP_STATE.favoritesOnly) {
+    title = isAr ? 'المفضلة' : 'Wishlist';
+    desc = isAr ? 'المنتجات التي أضفتها إلى المفضلة.' : 'Products you saved to your wishlist.';
+  } else if (APP_STATE.searchQuery.trim()) {
+    title = isAr ? `نتائج البحث: "${escapeHtml(APP_STATE.searchQuery)}"` : `Search: "${escapeHtml(APP_STATE.searchQuery)}"`;
+    desc = '';
+  } else if (cat) {
+    title = isAr ? cat.nameAr : cat.nameEn;
+    desc = isAr ? cat.descriptionAr : cat.descriptionEn;
+  } else {
+    title = isAr ? 'جميع المنتجات' : 'All Products';
+    desc = isAr ? 'كل منتجات Nourii اليدوية في مكان واحد.' : 'Every handmade Nourii product in one place.';
+  }
+
+  document.title = `${title.replace(/&quot;/g, '"')} | Nourii`;
+  const chevron = `<i class="fa-solid fa-chevron-${isAr ? 'left' : 'right'} text-[10px] opacity-60"></i>`;
+  const crumbs = document.getElementById('shop-breadcrumb');
+  if (crumbs) {
+    crumbs.innerHTML = `
+      <a href="index.html" class="hover:text-brand-500">${isAr ? 'الرئيسية' : 'Home'}</a>${chevron}
+      ${cat || APP_STATE.favoritesOnly || APP_STATE.searchQuery.trim()
+        ? `<a href="shop.html" class="hover:text-brand-500">${isAr ? 'جميع المنتجات' : 'All Products'}</a>${chevron}` : ''}
+      <span class="text-stone-800 dark:text-stone-200">${title}</span>`;
+  }
+
+  banner.innerHTML = `
+    <div class="flex flex-col sm:flex-row items-center gap-6 bg-brand-50 dark:bg-stone-900 rounded-[28px] p-6 sm:p-8">
+      ${cat ? `<img src="${cat.image}" alt="${escapeHtml(title)}" class="w-full sm:w-48 h-40 sm:h-36 object-cover rounded-2xl">` : ''}
+      <div class="text-center sm:text-start">
+        <h1 class="text-3xl sm:text-4xl font-bold mb-2">${title}</h1>
+        ${desc ? `<p class="text-stone-600 dark:text-stone-300 text-sm sm:text-base leading-relaxed max-w-2xl">${escapeHtml(desc)}</p>` : ''}
+      </div>
+    </div>`;
+}
+
+// SHOP PAGE CATEGORY CHIPS (each one opens that category's page)
 function renderCategories() {
   const container = document.getElementById('categories-container');
   if (!container) return;
@@ -232,30 +292,19 @@ function renderCategories() {
   const chip = (id, label, count) => {
     const isActive = APP_STATE.currentCategory === id && !APP_STATE.favoritesOnly;
     return `
-      <button onclick="selectCategory('${id}')"
+      <a href="${shopUrl(id)}"
         class="category-chip px-4 py-2 rounded-full border text-sm font-bold flex items-center gap-2 ${
           isActive ? 'active' : 'bg-white dark:bg-stone-800 border-stone-200 dark:border-stone-700 hover:border-brand-300 hover:text-brand-500'
         }">
         <span>${label}</span>
         <span class="text-xs opacity-70 font-normal">${count}</span>
-      </button>`;
+      </a>`;
   };
 
   container.innerHTML = chip('all', isAr ? 'الكل' : 'All', PRODUCTS.length) +
     CATEGORIES.map(cat => chip(cat.id, isAr ? cat.nameAr : cat.nameEn, PRODUCTS.filter(p => p.categoryId === cat.id).length)).join('');
-}
 
-function selectCategory(catId) {
-  APP_STATE.currentCategory = catId;
-  APP_STATE.favoritesOnly = false;
-  renderCategories();
-  renderProducts();
-  if (typeof renderHeaderNav === 'function') renderHeaderNav();
-
-  const catalogEl = document.getElementById('catalog-section');
-  if (catalogEl) {
-    catalogEl.scrollIntoView({ behavior: 'smooth' });
-  }
+  container.querySelector('.active')?.scrollIntoView({ block: 'nearest', inline: 'center' });
 }
 
 // PRODUCT CARD (used by the catalog grid and "related products")
@@ -326,14 +375,6 @@ function renderProducts() {
     filtered.sort((a, b) => b.rating - a.rating);
   }
 
-  const titleEl = document.getElementById('catalog-title');
-  if (titleEl) {
-    const cat = CATEGORIES.find(c => c.id === APP_STATE.currentCategory);
-    titleEl.innerText = APP_STATE.favoritesOnly
-      ? (isAr ? 'المفضلة' : 'Wishlist')
-      : cat ? (isAr ? cat.nameAr : cat.nameEn) : (isAr ? 'جميع المنتجات' : 'All Products');
-  }
-
   if (countEl) {
     countEl.innerText = `${filtered.length} ${isAr ? 'منتج' : 'products'}`;
   }
@@ -343,26 +384,15 @@ function renderProducts() {
       <div class="col-span-full py-16 text-center">
         <h3 class="text-xl font-bold mb-2">${isAr ? 'لم نعثر على منتجات مطابقة' : 'No products found'}</h3>
         <p class="text-stone-500 max-w-md mx-auto text-sm mb-6">${isAr ? 'جرب البحث بكلمات أخرى أو تصفح بقية الأقسام.' : 'Try searching for something else or browse our categories.'}</p>
-        <button onclick="resetFilters()" class="btn-primary h-11 px-6 text-sm">
+        <a href="shop.html" class="btn-primary h-11 px-6 text-sm inline-flex items-center">
           ${isAr ? 'عرض كل المنتجات' : 'View All Products'}
-        </button>
+        </a>
       </div>
     `;
     return;
   }
 
   container.innerHTML = filtered.map(productCardHTML).join('');
-}
-
-function resetFilters() {
-  APP_STATE.currentCategory = 'all';
-  APP_STATE.searchQuery = '';
-  APP_STATE.favoritesOnly = false;
-  const searchInput = document.getElementById('search-input');
-  if (searchInput) searchInput.value = '';
-  renderCategories();
-  renderProducts();
-  if (typeof renderHeaderNav === 'function') renderHeaderNav();
 }
 
 // FAVORITES
@@ -378,17 +408,8 @@ function toggleFavorite(id) {
   }
   saveFavorites();
   renderProducts();
+  renderFeaturedProducts();
   renderProductPage();
-}
-
-function toggleFavoritesView() {
-  APP_STATE.favoritesOnly = !APP_STATE.favoritesOnly;
-  renderCategories();
-  renderProducts();
-  const isAr = APP_STATE.lang === 'ar';
-  if (APP_STATE.favoritesOnly) {
-    showToast(isAr ? 'عرض المنتجات المفضلة فقط' : 'Showing favorite items only', 'info');
-  }
 }
 
 function updateFavBadge() {
@@ -425,7 +446,7 @@ function renderProductPage() {
       <div class="py-28 text-center">
         <h1 class="text-3xl font-bold mb-3">${isAr ? 'المنتج غير موجود' : 'Product not found'}</h1>
         <p class="text-stone-500 mb-8">${isAr ? 'ربما تم حذف هذا المنتج أو تغيير رابطه.' : 'This product may have been removed or its link changed.'}</p>
-        <a href="index.html#catalog-section" class="btn-primary h-[50px] px-8 inline-flex items-center">${isAr ? 'تصفح كل المنتجات' : 'Browse all products'}</a>
+        <a href="shop.html" class="btn-primary h-[50px] px-8 inline-flex items-center">${isAr ? 'تصفح كل المنتجات' : 'Browse all products'}</a>
       </div>`;
     document.getElementById('related-section')?.classList.add('hidden');
     return;
@@ -454,7 +475,7 @@ function renderProductPage() {
       <a href="index.html" class="hover:text-brand-500">${isAr ? 'الرئيسية' : 'Home'}</a>
       <i class="fa-solid fa-chevron-${isAr ? 'left' : 'right'} text-[10px] opacity-60"></i>
       ${cat ? `
-        <a href="index.html?cat=${cat.id}#catalog-section" class="hover:text-brand-500">${isAr ? cat.nameAr : cat.nameEn}</a>
+        <a href="${shopUrl(cat.id)}" class="hover:text-brand-500">${isAr ? cat.nameAr : cat.nameEn}</a>
         <i class="fa-solid fa-chevron-${isAr ? 'left' : 'right'} text-[10px] opacity-60"></i>` : ''}
       <span class="text-stone-800 dark:text-stone-200">${name}</span>
     </nav>
@@ -730,7 +751,7 @@ function renderCartDrawer() {
         </div>
         <p class="font-display font-bold text-xl mb-1">${isAr ? 'سلة المشتريات فارغة' : 'Your cart is empty'}</p>
         <p class="text-sm text-stone-500 mb-6">${isAr ? 'تصفح أقسام Nourii وأضف منتجاتك المفضلة.' : 'Explore Nourii collections and add your favorite items.'}</p>
-        <a href="index.html#catalog-section" onclick="toggleCartDrawer()" class="btn-primary h-11 px-7 text-sm inline-flex items-center">
+        <a href="shop.html" onclick="toggleCartDrawer()" class="btn-primary h-11 px-7 text-sm inline-flex items-center">
           ${isAr ? 'تصفح المنتجات' : 'Start Shopping'}
         </a>
       </div>
@@ -1153,6 +1174,7 @@ function setupEventListeners() {
   if (searchInput) {
     searchInput.addEventListener('input', (e) => {
       APP_STATE.searchQuery = e.target.value;
+      renderShopBanner();
       renderProducts();
     });
   }

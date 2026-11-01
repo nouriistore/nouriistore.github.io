@@ -25,7 +25,10 @@ copies the site uses live in `assets/images/`.
 
 | File | Role |
 |------|------|
-| `index.html`, `app.js`, `styles.css` | Storefront: catalog, filters, cart, wishlist, coupons (`NOURII10`), giveaways estimator, WhatsApp checkout |
+| `index.html` | Home page: hero, category tiles, best sellers, giveaways promo, reviews, FAQs |
+| `shop.html` | Shop page: all products (`shop.html`), one category (`shop.html?cat=<id>`), search (`?q=`) or wishlist (`?fav=1`); banner, chips, search, sort, grid |
+| `giveaways.html` | Smart giveaways estimator page |
+| `app.js`, `styles.css` | Shared storefront logic and styles: cart, wishlist, coupons (`NOURII10`), WhatsApp checkout, page renderers |
 | `product.html` | Product page (`product.html?id=<product id>`): gallery, price, name field, qty, add to cart / buy now, tabs, related products, sticky buy bar |
 | `layout.js` | Shared announcement bar, header + category menu, footer, cart drawer, checkout and settings modals, injected into `#site-header`, `#site-footer`, `#site-overlays` on every storefront page |
 | `tailwind-config.js` | Shared Tailwind theme: bright pink `brand` scale (`#e85db3`), El Messiri display font |
@@ -46,10 +49,10 @@ copies the site uses live in `assets/images/`.
   admin page loads or the users tab opens.
 - If the `admin` row is removed from the `Users` sheet, or Drive is unreachable, nobody can
   log in. Keep that row.
-- Script and style tags in `index.html`, `product.html` and `admin.html` carry a version
+- Script and style tags in every storefront page and `admin.html` carry a version
   query string for cache busting. Bump it when you change those files.
-- Home page links accept `?cat=<category id>`, `?q=<search>` and `?fav=1` to open the catalog
-  filtered. A product can have extra photos in an optional `images` field (array, or comma /
+- Every header menu item is its own page (home, `shop.html`, `shop.html?cat=<id>` per
+  category, `giveaways.html`). Old `index.html?cat=...` links redirect to `shop.html`. A product can have extra photos in an optional `images` field (array, or comma /
   new-line separated URLs); they show as thumbnails on its product page.
 - When the Apps Script backend changes, it must be re-pasted in Google Apps Script and
   redeployed; a new deployment gives a new URL that must go into `config.js`.
@@ -79,3 +82,6 @@ copies the site uses live in `assets/images/`.
   (El Messiri font, pill buttons, centered logo with category menu). Replaced the product
   pop-up with a shareable product page (`product.html?id=...`) and moved the shared header,
   footer and cart into `layout.js`.
+- 2026-11-01 (Claude Code): Split the storefront into pages: each menu item now opens its own
+  page (`shop.html` for all products and per category, `giveaways.html`); home keeps hero,
+  categories, best sellers, reviews and FAQs.

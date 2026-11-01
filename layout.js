@@ -9,13 +9,26 @@ function isCatalogPage() {
   return !!document.getElementById('products-grid');
 }
 
-// Category links work on every page: on the home page they filter in place,
-// elsewhere they open the home page already filtered.
-function navCategory(event, catId) {
-  if (!isCatalogPage() || typeof selectCategory !== 'function') return true;
-  event.preventDefault();
-  selectCategory(catId);
-  return false;
+// Every menu item is its own page:
+//   home → index.html, all products → shop.html, a category → shop.html?cat=<id>,
+//   giveaways builder → giveaways.html
+function shopUrl(catId) {
+  return catId && catId !== 'all' ? `shop.html?cat=${encodeURIComponent(catId)}` : 'shop.html';
+}
+
+// Which menu item is the page we are on
+function currentNavKey() {
+  const page = document.body.dataset.page;
+  if (page === 'shop') {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('q') || params.get('fav')) return null;
+    return params.get('cat') || 'all';
+  }
+  if (page === 'product' && typeof PRODUCTS !== 'undefined') {
+    const id = new URLSearchParams(window.location.search).get('id');
+    return PRODUCTS.find(p => p.id === id)?.categoryId || null;
+  }
+  return page === 'home' ? 'home' : page === 'giveaways' ? 'giveaways' : null;
 }
 
 function renderHeaderNav() {
@@ -23,17 +36,19 @@ function renderHeaderNav() {
   if (!nav || typeof CATEGORIES === 'undefined') return;
 
   const isAr = typeof APP_STATE === 'undefined' || APP_STATE.lang === 'ar';
-  const current = typeof APP_STATE !== 'undefined' && isCatalogPage() ? APP_STATE.currentCategory : null;
-  const link = (href, label, catId, extra = '') => `
-    <a href="${href}" ${catId ? `onclick="return navCategory(event, '${catId}')"` : ''}
-      class="header-nav-link ${catId && current === catId ? 'is-active' : ''} ${extra}">${label}</a>`;
+  const current = currentNavKey();
+  const link = (key, href, label, extra = '') => `
+    <a href="${href}" class="header-nav-link ${current === key ? 'is-active' : ''} ${extra}">${label}</a>`;
 
   nav.innerHTML = [
-    link('index.html', isAr ? 'الرئيسية' : 'Home'),
-    link('index.html?cat=all#catalog-section', isAr ? 'جميع المنتجات' : 'All Products', 'all'),
-    ...CATEGORIES.map(c => link(`index.html?cat=${c.id}#catalog-section`, isAr ? c.nameAr : c.nameEn, c.id)),
-    link('index.html#giveaways-estimator', isAr ? 'صانع التوزيعات' : 'Giveaways Builder', null, 'text-brand-600'),
+    link('home', 'index.html', isAr ? 'الرئيسية' : 'Home'),
+    link('all', shopUrl('all'), isAr ? 'جميع المنتجات' : 'All Products'),
+    ...CATEGORIES.map(c => link(c.id, shopUrl(c.id), isAr ? c.nameAr : c.nameEn)),
+    link('giveaways', 'giveaways.html', isAr ? 'صانع التوزيعات' : 'Giveaways Builder', 'text-brand-600'),
   ].join('');
+
+  // On phones the menu scrolls sideways; bring the current page's link into view
+  nav.querySelector('.is-active')?.scrollIntoView({ block: 'nearest', inline: 'center' });
 }
 
 function toggleHeaderSearch(force) {
@@ -47,29 +62,12 @@ function toggleHeaderSearch(force) {
 function submitHeaderSearch(event) {
   event.preventDefault();
   const q = (document.getElementById('header-search-input')?.value || '').trim();
-  if (isCatalogPage()) {
-    const input = document.getElementById('search-input');
-    if (input) input.value = q;
-    APP_STATE.searchQuery = q;
-    APP_STATE.currentCategory = 'all';
-    APP_STATE.favoritesOnly = false;
-    renderCategories();
-    renderProducts();
-    toggleHeaderSearch(false);
-    document.getElementById('catalog-section')?.scrollIntoView({ behavior: 'smooth' });
-  } else {
-    window.location.href = `index.html?q=${encodeURIComponent(q)}#catalog-section`;
-  }
+  window.location.href = q ? `shop.html?q=${encodeURIComponent(q)}` : 'shop.html';
   return false;
 }
 
 function openFavorites() {
-  if (isCatalogPage()) {
-    toggleFavoritesView();
-    document.getElementById('catalog-section')?.scrollIntoView({ behavior: 'smooth' });
-  } else {
-    window.location.href = 'index.html?fav=1#catalog-section';
-  }
+  window.location.href = 'shop.html?fav=1';
 }
 
 function renderSiteHeader() {
@@ -138,7 +136,7 @@ function renderSiteFooter() {
   if (!el || typeof CATEGORIES === 'undefined') return;
   const half = Math.ceil(CATEGORIES.length / 2);
   const catLinks = list => list.map(c =>
-    `<li><a href="index.html?cat=${c.id}#catalog-section" onclick="return navCategory(event, '${c.id}')" class="hover:text-brand-500 transition-colors">${c.nameAr}</a></li>`
+    `<li><a href="${shopUrl(c.id)}" class="hover:text-brand-500 transition-colors">${c.nameAr}</a></li>`
   ).join('');
 
   el.innerHTML = `

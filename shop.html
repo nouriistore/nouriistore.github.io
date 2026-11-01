@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Nourii | جميع المنتجات</title>
+
+  <!-- Meta SEO -->
+  <meta name="description" content="متجر Nourii (نوري) - وجهتكم الأولى للأعمال الفنية اليدوية، كونكريت للتلوين، كتب تلوين، توزيعات مناسبات، نوت بوك، ومطبوعات تعليمية ودينية فاخرة.">
+  <meta name="keywords" content="Nourii, نوري, كونكريت للتلوين, كتب تلوين, توزيعات مناسبات, نوت بوك, مطبوعات دينية, ادوات تعليمية للاطفال, استيكرز, هاند ميد">
+
+  <!-- Tailwind CSS CDN + shared theme -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="tailwind-config.js?v=20261101b"></script>
+
+  <!-- Font Awesome 6 -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+
+  <!-- Custom CSS -->
+  <link rel="stylesheet" href="styles.css?v=20261101b">
+</head>
+<body data-page="shop">
+
+  <div id="site-header"></div>
+
+  <main>
+    <!-- ================= SHOP / CATEGORY BANNER (filled by app.js) ================= -->
+    <section class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6">
+      <nav id="shop-breadcrumb" class="text-sm text-stone-500 mb-5 flex items-center flex-wrap gap-2"></nav>
+      <div id="shop-banner"></div>
+    </section>
+
+    <!-- ================= MAIN PRODUCTS CATALOG ================= -->
+    <section id="catalog-section" class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-10 scroll-mt-40">
+      <div class="flex flex-col md:flex-row md:items-end justify-between gap-5 mb-6">
+        <span id="products-count" class="text-sm text-stone-500">جاري التحميل...</span>
+
+        <div class="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+          <div class="relative w-full sm:w-64">
+            <i class="fa-solid fa-magnifying-glass absolute top-1/2 -translate-y-1/2 start-4 text-stone-400 text-xs"></i>
+            <input type="text" id="search-input" placeholder="ابحث في المنتجات..."
+              class="w-full ps-10 pe-4 py-2.5 rounded-full border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-800 text-sm focus:outline-none focus:ring-2 focus:ring-brand-300">
+          </div>
+          <select id="sort-select" class="px-4 py-2.5 rounded-full border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-800 text-sm font-bold focus:outline-none focus:ring-2 focus:ring-brand-300">
+            <option value="popular">الأكثر طلباً</option>
+            <option value="price-asc">السعر: من الأقل للأعلى</option>
+            <option value="price-desc">السعر: من الأعلى للأقل</option>
+            <option value="rating">الأعلى تقييماً</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Category filter chips -->
+      <div id="categories-container" class="flex items-center gap-2 overflow-x-auto pb-3 mb-6 no-scrollbar"></div>
+
+      <div id="products-grid" class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-x-4 gap-y-8 sm:gap-x-6"></div>
+    </section>
+
+  </main>
+
+  <div id="site-footer"></div>
+  <div id="site-overlays"></div>
+
+  <!-- Scripts -->
+  <script src="config.js?v=20261101b"></script>
+  <script src="products.js?v=20261101b"></script>
+  <script src="layout.js?v=20261101b"></script>
+  <script src="app.js?v=20261101b"></script>
+</body>
+</html>

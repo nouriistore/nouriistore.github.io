@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Nourii | صانع التوزيعات الذكي</title>
+
+  <!-- Meta SEO -->
+  <meta name="description" content="متجر Nourii (نوري) - وجهتكم الأولى للأعمال الفنية اليدوية، كونكريت للتلوين، كتب تلوين، توزيعات مناسبات، نوت بوك، ومطبوعات تعليمية ودينية فاخرة.">
+  <meta name="keywords" content="Nourii, نوري, كونكريت للتلوين, كتب تلوين, توزيعات مناسبات, نوت بوك, مطبوعات دينية, ادوات تعليمية للاطفال, استيكرز, هاند ميد">
+
+  <!-- Tailwind CSS CDN + shared theme -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="tailwind-config.js?v=20261101b"></script>
+
+  <!-- Font Awesome 6 -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+
+  <!-- Custom CSS -->
+  <link rel="stylesheet" href="styles.css?v=20261101b">
+</head>
+<body data-page="giveaways">
+
+  <div id="site-header"></div>
+
+  <main>
+    <!-- ================= SMART GIVEAWAYS ESTIMATOR ================= -->
+    <section id="giveaways-estimator" class="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 pt-10">
+      <div class="text-center max-w-2xl mx-auto mb-8">
+        <h1 class="text-3xl sm:text-4xl font-bold mb-3">صانع التوزيعات الذكي 💍🍼</h1>
+        <p class="text-stone-600 dark:text-stone-400 text-sm leading-relaxed">
+          اختر المناسبة ونوع التوزيعات والكمية، واحصل على سعر تقديري فوري مع خصومات الكميات.
+        </p>
+      </div>
+
+      <div class="bg-brand-50 dark:bg-stone-900 rounded-[28px] p-6 sm:p-10">
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-5 mb-6">
+          <div>
+            <label class="block text-sm font-bold mb-2">1. نوع المناسبة</label>
+            <select id="gw-event" class="w-full p-3.5 rounded-xl border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-800 text-sm font-semibold focus:ring-2 focus:ring-brand-300 focus:outline-none">
+              <option value="baby-shower">سبوع ومولود جديد 🍼</option>
+              <option value="katb-ktab">عقد قران وزفاف 💍</option>
+              <option value="engagement">حفلة خطوبة 💐</option>
+              <option value="henna">حنة العروس 🌺</option>
+              <option value="graduation">تخرج ونجاح 🎓</option>
+              <option value="birthday">عيد ميلاد 🎂</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-sm font-bold mb-2">2. نوع التوزيعات</label>
+            <select id="gw-type" class="w-full p-3.5 rounded-xl border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-800 text-sm font-semibold focus:ring-2 focus:ring-brand-300 focus:outline-none">
+              <option value="choco-box">علب شوكولاتة مع كارت مخصص (25 ج.م)</option>
+              <option value="mini-quran">ميني مصحف مخمل وسبحة وكارت دعاء (35 ج.م)</option>
+              <option value="concrete-paint">مجسمات كونكريت للتلوين مع ألوان (30 ج.م)</option>
+              <option value="kids-cards">كروت تعليمية وألعاب للأطفال (22 ج.م)</option>
+              <option value="wax-envelope">أظرف بختم شمع وكارت إهداء (20 ج.م)</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-sm font-bold mb-2">3. الكمية</label>
+            <select id="gw-qty" class="w-full p-3.5 rounded-xl border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-800 text-sm font-semibold focus:ring-2 focus:ring-brand-300 focus:outline-none">
+              <option value="25">25 قطعة (السعر الأساسي)</option>
+              <option value="50" selected>50 قطعة (خصم 10%)</option>
+              <option value="100">100 قطعة (خصم 15%)</option>
+              <option value="200">200 قطعة (خصم 20%)</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="mb-6">
+          <label class="block text-sm font-bold mb-2">الاسم والتاريخ المراد طباعته (اختياري)</label>
+          <input type="text" id="gw-name" placeholder="مثال: مولودنا الغالي زين - 2026/10/25"
+            class="w-full p-3.5 rounded-xl border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-800 text-sm focus:ring-2 focus:ring-brand-300 focus:outline-none">
+        </div>
+
+        <div class="flex justify-center mb-6">
+          <button id="gw-calc-btn" class="btn-primary h-[50px] px-10 text-base">احسب التكلفة</button>
+        </div>
+
+        <div id="gw-result-card" class="bg-white dark:bg-stone-800 p-6 rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-5">
+          <div class="text-center sm:text-start">
+            <div class="flex items-center gap-2 justify-center sm:justify-start mb-1">
+              <span id="gw-discount-badge" class="bg-brand-100 text-brand-700 text-xs font-bold px-2.5 py-0.5 rounded-full">خصم خاص 10%</span>
+              <span class="text-xs text-stone-500">سعر القطعة: <strong id="gw-unit-price" class="text-stone-800 dark:text-stone-200">--</strong></span>
+            </div>
+            <div class="flex items-baseline gap-2 justify-center sm:justify-start">
+              <span class="text-sm font-bold text-stone-500">الإجمالي التقديري:</span>
+              <span id="gw-total-price" class="text-3xl font-bold text-brand-500 font-display">--</span>
+            </div>
+          </div>
+          <button onclick="requestGiveawayWhatsApp()" class="btn-whatsapp h-[50px] px-8 text-base flex items-center gap-2">
+            <i class="fa-brands fa-whatsapp text-lg"></i>
+            <span>اطلب عرض السعر</span>
+          </button>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <div id="site-footer"></div>
+  <div id="site-overlays"></div>
+
+  <!-- Scripts -->
+  <script src="config.js?v=20261101b"></script>
+  <script src="products.js?v=20261101b"></script>
+  <script src="layout.js?v=20261101b"></script>
+  <script src="app.js?v=20261101b"></script>
+</body>
+</html>
